@@ -1,0 +1,78 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // =====================================================
+    // 1. DEFAULT-DENY CATCH-ALL GATE
+    // =====================================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // =====================================================
+    // 2. AUTHENTICATION & IDENTITY HELPERS
+    // =====================================================
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // =====================================================
+    // 3. SCHEMA VALIDATION
+    // =====================================================
+    function isValidUserProfile(data, userId) {
+      return data.uid == userId
+        && data.email is string
+        && data.email.size() <= 256
+        && (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 128))
+        && (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 512));
+    }
+
+    function isValidJournalEntry(data, userId) {
+      return data.id is string && isValidId(data.id)
+        && data.userId == userId
+        && data.date is string && data.date.size() <= 32
+        && (!('title' in data) || (data.title is string && data.title.size() <= 256))
+        && (!('summary' in data) || (data.summary is string && data.summary.size() <= 4000))
+        && (!('mood' in data) || (data.mood is string && data.mood.size() <= 64))
+        && (!('reflectionType' in data) || (data.reflectionType is string && data.reflectionType.size() <= 64))
+        && (!('tags' in data) || (data.tags is list && data.tags.size() <= 20))
+        && (!('messages' in data) || (data.messages is list && data.messages.size() <= 100))
+        && (!('insights' in data) || (data.insights is list && data.insights.size() <= 20));
+    }
+
+    // =====================================================
+    // 4. USER DATA COLLECTION GATES
+    // =====================================================
+    match /users/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidId(userId) && isValidUserProfile(incoming(), userId);
+      allow update: if isOwner(userId) && isValidId(userId) && isValidUserProfile(incoming(), userId) && incoming().uid == existing().uid;
+      allow delete: if isOwner(userId) && isValidId(userId);
+
+      // Isolated Journal Entries Subcollection
+      match /entries/{entryId} {
+        allow get, delete: if isOwner(userId) && isValidId(entryId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(entryId) && isValidJournalEntry(incoming(), userId);
+        allow update: if isOwner(userId) && isValidId(entryId) && isValidJournalEntry(incoming(), userId) && incoming().userId == existing().userId;
+      }
+    }
+  }
+}

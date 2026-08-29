@@ -1,0 +1,54 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile with authentication details, warmth preferences, and streak metadata.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "maxLength": 256 },
+        "displayName": { "type": "string", "maxLength": 128 },
+        "photoURL": { "type": "string", "maxLength": 512 },
+        "streakDays": { "type": "number" },
+        "lastJournalDate": { "type": "string", "maxLength": 32 },
+        "themePreference": { "type": "string", "enum": ["warm_amber", "terracotta", "linen_cream", "dusk_copper"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email"]
+    },
+    "JournalEntry": {
+      "title": "JournalEntry",
+      "description": "Personal journal entry with multi-turn AI reflection conversation, mood, summary, and date tracking.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 256 },
+        "date": { "type": "string", "maxLength": 32 },
+        "mood": { "type": "string", "maxLength": 64 },
+        "tags": { "type": "array" },
+        "initialThought": { "type": "string", "maxLength": 10000 },
+        "summary": { "type": "string", "maxLength": 2000 },
+        "insights": { "type": "array" },
+        "reflectionType": { "type": "string", "enum": ["daily_reflection", "brainstorm", "gratitude", "deep_dive", "mindfulness", "general"] },
+        "messages": { "type": "array" },
+        "favorite": { "type": "boolean" },
+        "wordCount": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "date", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Private owner-bound user account profile document."
+    },
+    "/users/{userId}/entries/{entryId}": {
+      "schema": "JournalEntry",
+      "description": "Owner-isolated journal entries and multi-turn reflections."
+    }
+  }
+}
