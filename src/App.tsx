@@ -105,7 +105,10 @@ export default function App() {
           unsubEntries();
         };
       } else {
-        // Load local guest entries
+        // Logged out - reset editor and load guest entries if any
+        setCurrentEditingEntry(null);
+        setActiveTab("editor");
+        setSelectedFilterDate(null);
         try {
           const stored = localStorage.getItem("warmth_guest_entries");
           setEntries(stored ? JSON.parse(stored) : []);
@@ -133,6 +136,13 @@ export default function App() {
   const handleSignOut = async () => {
     try {
       await signOut(auth);
+      setUser(null);
+      setEntries([]);
+      setCurrentEditingEntry(null);
+      setSelectedFilterDate(null);
+      setActiveTab("editor");
+      // Clear any guest leftover cache so fresh login page is shown
+      localStorage.removeItem("warmth_guest_entries");
       showToast("Signed out. Your entries remain safely protected in Firestore.");
     } catch (err: any) {
       showToast(`Sign out error: ${err.message}`, "error");
