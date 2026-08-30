@@ -35,6 +35,9 @@
         "messages": { "type": "array" },
         "favorite": { "type": "boolean" },
         "wordCount": { "type": "number" },
+        "photoUrl": { "type": "string", "maxLength": 900000 },
+        "photoCaption": { "type": "string", "maxLength": 500 },
+        "hasVoiceNote": { "type": "boolean" },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },

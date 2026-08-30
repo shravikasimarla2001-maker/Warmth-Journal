@@ -74,7 +74,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({
 
         <p className="text-[#6E5D4F] text-base sm:text-lg max-w-2xl mx-auto font-journal leading-relaxed">
           Write multi-turn journal entries, converse with a compassionate Gemini
-          companion, and keep your memories securely isolated in your private Cloud
+          companion, and keep your memories securely in your private Cloud
           Firestore.
         </p>
 

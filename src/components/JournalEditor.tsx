@@ -20,6 +20,13 @@ import {
   ArrowRight,
   Shield,
   Star,
+  Camera,
+  Mic,
+  MicOff,
+  Square,
+  X,
+  Image as ImageIcon,
+  Edit3,
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import {
@@ -31,12 +38,15 @@ import {
   DailySpark,
 } from "../types";
 import { User } from "firebase/auth";
+import { DailyPhotoModal } from "./DailyPhotoModal";
+import { VoiceDictationBar } from "./VoiceDictationBar";
 
 interface JournalEditorProps {
   user: User | null;
   currentEntry: JournalEntry | null;
   onSaveEntry: (entry: Partial<JournalEntry>) => Promise<string | void>;
   onNewEntry: () => void;
+  onDeleteEntry?: (entryId: string) => Promise<void> | void;
   telemetry: ModelTelemetry | null;
   onSelectDateInCalendar?: (date: string) => void;
 }
@@ -68,6 +78,7 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
   currentEntry,
   onSaveEntry,
   onNewEntry,
+  onDeleteEntry,
   telemetry,
 }) => {
   // Today's date YYYY-MM-DD
@@ -107,6 +118,130 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
   const [favorite, setFavorite] = useState<boolean>(
     currentEntry?.favorite || false
   );
+  const [photoUrl, setPhotoUrl] = useState<string | undefined>(
+    currentEntry?.photoUrl
+  );
+  const [photoCaption, setPhotoCaption] = useState<string>(
+    currentEntry?.photoCaption || ""
+  );
+  const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showVoiceBar, setShowVoiceBar] = useState(false);
+
+  // Speech Recognition / Voice Diary State
+  const [isVoiceListening, setIsVoiceListening] = useState(false);
+  const [voiceDuration, setVoiceDuration] = useState(0);
+  const [interimSpeech, setInterimSpeech] = useState("");
+  const [voiceError, setVoiceError] = useState<string | null>(null);
+
+  const recognitionRef = useRef<any>(null);
+  const voiceTimerRef = useRef<any>(null);
+
+  // Stop voice dictation
+  const stopVoiceDictation = () => {
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch (e) {
+        // ignore
+      }
+      recognitionRef.current = null;
+    }
+    if (voiceTimerRef.current) {
+      clearInterval(voiceTimerRef.current);
+      voiceTimerRef.current = null;
+    }
+    setIsVoiceListening(false);
+    setInterimSpeech("");
+  };
+
+  // Start voice dictation
+  const startVoiceDictation = () => {
+    const SpeechRecognition =
+      (window as any).SpeechRecognition ||
+      (window as any).webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      setVoiceError(
+        "Speech recognition is not supported in this browser. Please use Chrome, Edge, or Safari."
+      );
+      return;
+    }
+
+    setVoiceError(null);
+    setVoiceDuration(0);
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = "en-US";
+
+      recognition.onstart = () => {
+        setIsVoiceListening(true);
+        if (voiceTimerRef.current) clearInterval(voiceTimerRef.current);
+        voiceTimerRef.current = setInterval(() => {
+          setVoiceDuration((d) => d + 1);
+        }, 1000);
+      };
+
+      recognition.onresult = (event: any) => {
+        let currentInterim = "";
+        let finalChunk = "";
+
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            finalChunk += transcript + " ";
+          } else {
+            currentInterim += transcript;
+          }
+        }
+
+        if (finalChunk.trim()) {
+          setInitialThought((prev) => {
+            const cleaned = finalChunk.trim();
+            if (!prev.trim()) return cleaned;
+            const needsSpace = !prev.endsWith(" ") && !prev.endsWith("\n");
+            return prev + (needsSpace ? " " : "") + cleaned;
+          });
+        }
+        setInterimSpeech(currentInterim);
+      };
+
+      recognition.onerror = (event: any) => {
+        console.warn("Speech recognition error:", event.error);
+        if (event.error === "not-allowed") {
+          setVoiceError(
+            "Microphone access was denied. Please allow microphone permission in your browser."
+          );
+        } else if (event.error === "no-speech") {
+          // Keep listening
+        } else {
+          setVoiceError(`Microphone notice: ${event.error}`);
+        }
+        stopVoiceDictation();
+      };
+
+      recognition.onend = () => {
+        stopVoiceDictation();
+      };
+
+      recognitionRef.current = recognition;
+      recognition.start();
+    } catch (err: any) {
+      console.warn("Could not start speech recognition:", err);
+      setVoiceError("Could not activate microphone: " + (err.message || "Unknown error"));
+      setIsVoiceListening(false);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      stopVoiceDictation();
+    };
+  }, []);
 
   // Multi-turn chat input state
   const [chatInput, setChatInput] = useState("");
@@ -150,6 +285,22 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
       setInsights(currentEntry.insights || []);
       setTags(currentEntry.tags || ["reflection"]);
       setFavorite(currentEntry.favorite || false);
+      setPhotoUrl(currentEntry.photoUrl);
+      setPhotoCaption(currentEntry.photoCaption || "");
+    } else {
+      setEntryId("entry_" + Date.now());
+      setDate(getTodayString());
+      setTitle("");
+      setMood("peaceful");
+      setReflectionType("daily_reflection");
+      setInitialThought("");
+      setMessages([]);
+      setSummary("");
+      setInsights([]);
+      setTags(["reflection"]);
+      setFavorite(false);
+      setPhotoUrl(undefined);
+      setPhotoCaption("");
     }
   }, [currentEntry]);
 
@@ -296,12 +447,14 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
       messages: customMessages || messages,
       favorite,
       wordCount,
+      photoUrl: photoUrl || undefined,
+      photoCaption: photoCaption || undefined,
       updatedAt: new Date().toISOString(),
     };
 
     try {
       await onSaveEntry(payload);
-      setSaveStatus("Saved to your isolated Cloud Firestore!");
+      setSaveStatus("Saved your entry!");
 
       // Celebration effect
       confetti({
@@ -346,8 +499,34 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
     }
   };
 
+  // Append transcribed speech to thought
+  const handleAppendVoiceTranscript = (text: string) => {
+    setInitialThought((prev) => {
+      const cleaned = text.trim();
+      if (!cleaned) return prev;
+      if (!prev.trim()) return cleaned;
+      return prev.trim() + " " + cleaned;
+    });
+  };
+
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+      {/* Daily Photo Modal */}
+      <DailyPhotoModal
+        isOpen={isPhotoModalOpen}
+        onClose={() => setIsPhotoModalOpen(false)}
+        date={date}
+        initialPhotoUrl={photoUrl}
+        initialCaption={photoCaption}
+        onSavePhoto={(url, cap) => {
+          setPhotoUrl(url);
+          setPhotoCaption(cap);
+        }}
+        onRemovePhoto={() => {
+          setPhotoUrl(undefined);
+          setPhotoCaption("");
+        }}
+      />
       {/* Top Action Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-white rounded-2xl p-4 border border-[#E8DFC8] shadow-xs">
         <div className="flex flex-wrap items-center gap-3">
@@ -392,6 +571,17 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
 
         {/* Action Buttons */}
         <div className="flex items-center space-x-2">
+          {currentEntry && onDeleteEntry && (
+            <button
+              onClick={() => setIsDeleteModalOpen(true)}
+              className="px-3 py-2 rounded-xl text-xs font-medium text-red-600 hover:text-red-700 hover:bg-red-50 border border-transparent hover:border-red-200 transition-all flex items-center space-x-1.5 cursor-pointer"
+              title="Delete this reflection"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Delete</span>
+            </button>
+          )}
+
           <button
             onClick={onNewEntry}
             className="px-3.5 py-2 rounded-xl text-xs font-medium text-[#7E6E5F] hover:text-[#2C241E] hover:bg-[#FAF7F2] border border-transparent hover:border-[#E8DFC8] transition-all flex items-center space-x-1.5"
@@ -415,6 +605,78 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
         </div>
       </div>
 
+      {/* Delete Confirmation Modal for Journal Editor */}
+      {isDeleteModalOpen && currentEntry && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 border border-[#E8DFC8] shadow-2xl space-y-4 animate-scale-up">
+            <div className="w-12 h-12 rounded-2xl bg-red-50 border border-red-100 flex items-center justify-center text-red-600 mx-auto">
+              <Trash2 className="w-6 h-6" />
+            </div>
+
+            <div className="text-center space-y-1.5">
+              <h3 className="font-display text-lg font-bold text-[#2C241E]">
+                Delete Reflection?
+              </h3>
+              <p className="text-xs text-[#7E6E5F] leading-relaxed">
+                Are you sure you want to delete <strong className="text-[#2C241E]">"{title || currentEntry.title || "Reflective Musings"}"</strong> dated <strong>{date}</strong>? This action cannot be undone.
+              </p>
+            </div>
+
+            {photoUrl && (
+              <div className="p-2.5 bg-[#FAF7F2] rounded-xl border border-[#E8DFC8] flex items-center space-x-3 text-xs text-[#7E6E5F]">
+                <img
+                  src={photoUrl}
+                  alt="Entry thumbnail"
+                  className="w-10 h-10 rounded-lg object-cover border border-[#E8DFC8]"
+                />
+                <span className="truncate italic">
+                  Includes associated daily photo moment
+                </span>
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-3 pt-2">
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => setIsDeleteModalOpen(false)}
+                className="py-2.5 rounded-xl border border-[#E8DFC8] text-xs font-semibold text-[#4A3B32] hover:bg-[#FAF7F2] transition-colors"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={async () => {
+                  if (!onDeleteEntry || !currentEntry) return;
+                  setIsDeleting(true);
+                  try {
+                    await onDeleteEntry(currentEntry.id);
+                    setIsDeleteModalOpen(false);
+                    onNewEntry();
+                  } catch (err) {
+                    console.error("Delete error:", err);
+                  } finally {
+                    setIsDeleting(false);
+                  }
+                }}
+                className="py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-semibold shadow-xs transition-colors flex items-center justify-center space-x-1.5"
+              >
+                {isDeleting ? (
+                  <span>Deleting...</span>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Delete Reflection</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Save status notification banner */}
       {saveStatus && (
         <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs font-medium text-amber-900 flex items-center justify-between animate-fade-in">
@@ -424,7 +686,7 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
           </div>
           {user && (
             <span className="text-[10px] text-amber-700">
-              Isolated user: {user.email?.split("@")[0]}
+              User: {user.email?.split("@")[0]}
             </span>
           )}
         </div>
@@ -495,7 +757,8 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
               </div>
             </div>
 
-            {/* Quick Sparks Carousel */}
+            {/* Quick Sparks Carousel (Commented Out) */}
+            {/*
             <div className="bg-[#FAF7F2] rounded-xl p-3 border border-[#E8DFC8] space-y-2">
               <div className="flex items-center justify-between text-[11px] text-[#935116] font-semibold">
                 <span className="flex items-center space-x-1">
@@ -522,16 +785,169 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
                 ))}
               </div>
             </div>
+            */}
 
-            {/* Main Journal Content Area */}
+            {/* Written Thoughts & Voice Diary Area */}
             <div className="space-y-2">
-              <textarea
-                value={initialThought}
-                onChange={(e) => setInitialThought(e.target.value)}
-                placeholder="Pour your thoughts freely onto this page... Write what happened today, what weighed on you, what brought joy, or what you wish to let go of."
-                rows={12}
-                className="w-full p-4 rounded-xl bg-[#FAF7F2]/50 border border-[#E8DFC8] text-base text-[#2C241E] placeholder-[#A8988A] focus:outline-none focus:ring-2 focus:ring-[#BA4A00]/30 font-journal leading-relaxed resize-y"
-              />
+              {/* Compact Header Bar with Voice Diary & Photo Anchor */}
+              <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+                <div className="flex items-center space-x-2">
+                  <span className="text-xs font-bold text-[#4A3B32] uppercase tracking-wider">
+                    Written Thoughts
+                  </span>
+                  <span className="text-[10px] text-[#8C7B6C] bg-[#FAF7F2] px-2 py-0.5 rounded-full border border-[#E8DFC8]">
+                    {wordCount} words
+                  </span>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  {/* Speak Thoughts / Voice Diary Button */}
+                  {isVoiceListening ? (
+                    <button
+                      type="button"
+                      onClick={stopVoiceDictation}
+                      className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition-all shadow-xs animate-pulse"
+                      title="Click to stop listening"
+                    >
+                      <Square className="w-3 h-3 fill-current" />
+                      <span>Listening ({voiceDuration}s) · Done</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={startVoiceDictation}
+                      className="px-2.5 py-1 bg-[#FAF7F2] hover:bg-[#F5EBE1] text-[#935116] border border-[#E8DFC8] rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition-colors shadow-2xs"
+                      title="Speak your thoughts directly into this entry"
+                    >
+                      <Mic className="w-3.5 h-3.5 text-[#BA4A00]" />
+                      <span>Speak Thoughts</span>
+                    </button>
+                  )}
+
+                  {/* Daily Photo Moment Visual Anchor Button */}
+                  {photoUrl ? (
+                    <div className="flex items-center space-x-1 bg-[#FAF7F2] pl-1 pr-1.5 py-0.5 rounded-xl border border-[#E8DFC8] shadow-2xs">
+                      <div
+                        onClick={() => setIsPhotoModalOpen(true)}
+                        className="w-5 h-5 rounded-md overflow-hidden bg-black/5 cursor-pointer hover:opacity-80 border border-[#E8DFC8]"
+                        title="View / change daily photo"
+                      >
+                        <img
+                          src={photoUrl}
+                          alt="Moment"
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsPhotoModalOpen(true)}
+                        className="text-[11px] font-semibold text-[#BA4A00] hover:underline px-1"
+                      >
+                        Photo Attached
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPhotoUrl(undefined);
+                          setPhotoCaption("");
+                        }}
+                        className="text-[#8C7B6C] hover:text-red-600 p-0.5"
+                        title="Remove photo"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setIsPhotoModalOpen(true)}
+                      className="px-2.5 py-1 bg-[#FAF7F2] hover:bg-[#F5EBE1] text-[#4A3B32] border border-[#E8DFC8] rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition-colors shadow-2xs"
+                      title="Capture or select a daily photo moment"
+                    >
+                      <Camera className="w-3.5 h-3.5 text-[#BA4A00]" />
+                      <span>+ Daily Photo</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Slim Live Voice Feedback Banner (when active) */}
+              {isVoiceListening && (
+                <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-orange-50/90 border border-orange-200 text-xs text-orange-950">
+                  <div className="flex items-center space-x-2 overflow-hidden">
+                    <span className="flex space-x-0.5 items-center">
+                      <span
+                        className="w-1 h-3 bg-[#D35400] rounded-full animate-bounce"
+                        style={{ animationDelay: "0ms" }}
+                      />
+                      <span
+                        className="w-1 h-4 bg-[#D35400] rounded-full animate-bounce"
+                        style={{ animationDelay: "150ms" }}
+                      />
+                      <span
+                        className="w-1 h-2.5 bg-[#D35400] rounded-full animate-bounce"
+                        style={{ animationDelay: "300ms" }}
+                      />
+                    </span>
+                    <span className="font-semibold text-[11px] text-[#BA4A00]">
+                      Transcribing live:
+                    </span>
+                    <span className="italic text-[11px] text-[#5A4B3F] truncate">
+                      {interimSpeech || "Speak freely into your microphone..."}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={stopVoiceDictation}
+                    className="text-[11px] font-bold text-[#BA4A00] hover:underline shrink-0 ml-2"
+                  >
+                    Finish Dictation
+                  </button>
+                </div>
+              )}
+
+              {/* Voice Notice (if any) */}
+              {voiceError && (
+                <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-[11px] text-amber-900">
+                  <span>{voiceError}</span>
+                  <button
+                    type="button"
+                    onClick={() => setVoiceError(null)}
+                    className="text-amber-800 font-bold ml-2 p-0.5"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+
+              {/* Writing Textarea Canvas */}
+              <div className="relative">
+                <textarea
+                  value={initialThought}
+                  onChange={(e) => setInitialThought(e.target.value)}
+                  placeholder="Pour your thoughts freely onto this page... Or click 'Speak Thoughts' above to dictate naturally with your voice."
+                  rows={12}
+                  className="w-full p-4 rounded-xl bg-[#FAF7F2]/50 border border-[#E8DFC8] text-base text-[#2C241E] placeholder-[#A8988A] focus:outline-none focus:ring-2 focus:ring-[#BA4A00]/30 font-journal leading-relaxed resize-y"
+                />
+
+                {/* Minimalist Floating Photo Anchor Stamp (if photo exists) */}
+                {photoUrl && (
+                  <div
+                    onClick={() => setIsPhotoModalOpen(true)}
+                    className="absolute top-3 right-3 w-16 h-16 rounded-lg overflow-hidden bg-white p-1 shadow-md border border-[#E8DFC8] cursor-pointer hover:scale-105 transition-transform group"
+                    title="Click to preview or edit daily photo"
+                  >
+                    <img
+                      src={photoUrl}
+                      alt="Visual Anchor"
+                      className="w-full h-full object-cover rounded"
+                    />
+                    <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded">
+                      <Camera className="w-4 h-4 text-white" />
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Tags & Categorization */}

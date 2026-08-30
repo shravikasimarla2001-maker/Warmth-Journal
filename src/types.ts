@@ -39,6 +39,9 @@ export interface JournalEntry {
   messages: ChatMessage[];
   favorite?: boolean;
   wordCount: number;
+  photoUrl?: string; // Daily photo moment (compressed base64 data URL)
+  photoCaption?: string;
+  hasVoiceNote?: boolean;
   createdAt: string;
   updatedAt: string;
 }

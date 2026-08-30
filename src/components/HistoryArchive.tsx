@@ -55,6 +55,8 @@ export const HistoryArchive: React.FC<HistoryArchiveProps> = ({
   const [selectedMood, setSelectedMood] = useState<string>("all");
   const [onlyFavorites, setOnlyFavorites] = useState(false);
   const [readingEntry, setReadingEntry] = useState<JournalEntry | null>(null);
+  const [entryToDelete, setEntryToDelete] = useState<JournalEntry | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // Filter entries
@@ -308,6 +310,30 @@ export const HistoryArchive: React.FC<HistoryArchiveProps> = ({
                     {entry.title || "Reflective Musings"}
                   </h3>
 
+                  {/* Daily Photo Thumbnail if present */}
+                  {entry.photoUrl && (
+                    <div
+                      onClick={() => onSelectEntry(entry)}
+                      className="flex items-center space-x-3 bg-[#FAF7F2] p-2 rounded-xl border border-[#E8DFC8] cursor-pointer"
+                    >
+                      <div className="w-14 h-14 rounded-lg overflow-hidden bg-black/5 shrink-0 border border-[#E8DFC8]">
+                        <img
+                          src={entry.photoUrl}
+                          alt="Daily photo"
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-[10px] font-bold text-[#BA4A00] uppercase tracking-wider block">
+                          Daily Photo Moment
+                        </span>
+                        <p className="text-xs font-journal italic text-[#2C241E] truncate">
+                          "{entry.photoCaption || "Captured moment"}"
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
                   {/* AI Summary Snippet or Initial Thought */}
                   <p className="text-xs font-journal text-[#5A4B3F] leading-relaxed line-clamp-3">
                     {entry.summary || entry.initialThought || "No text content recorded."}
@@ -365,16 +391,8 @@ export const HistoryArchive: React.FC<HistoryArchiveProps> = ({
                     </button>
 
                     <button
-                      onClick={() => {
-                        if (
-                          confirm(
-                            "Are you sure you want to delete this reflection from your isolated Firestore archive?"
-                          )
-                        ) {
-                          onDeleteEntry(entry.id);
-                        }
-                      }}
-                      className="p-1.5 text-[#8C7B6C] hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      onClick={() => setEntryToDelete(entry)}
+                      className="p-1.5 text-[#8C7B6C] hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
                       title="Delete Entry"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -384,6 +402,80 @@ export const HistoryArchive: React.FC<HistoryArchiveProps> = ({
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {entryToDelete && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 border border-[#E8DFC8] shadow-2xl space-y-4 animate-scale-up">
+            <div className="w-12 h-12 rounded-2xl bg-red-50 border border-red-100 flex items-center justify-center text-red-600 mx-auto">
+              <Trash2 className="w-6 h-6" />
+            </div>
+
+            <div className="text-center space-y-1.5">
+              <h3 className="font-display text-lg font-bold text-[#2C241E]">
+                Delete Reflection?
+              </h3>
+              <p className="text-xs text-[#7E6E5F] leading-relaxed">
+                Are you sure you want to delete <strong className="text-[#2C241E]">"{entryToDelete.title || "Reflective Musings"}"</strong> dated <strong>{entryToDelete.date}</strong>? This action cannot be undone.
+              </p>
+            </div>
+
+            {entryToDelete.photoUrl && (
+              <div className="p-2.5 bg-[#FAF7F2] rounded-xl border border-[#E8DFC8] flex items-center space-x-3 text-xs text-[#7E6E5F]">
+                <img
+                  src={entryToDelete.photoUrl}
+                  alt="Entry thumbnail"
+                  className="w-10 h-10 rounded-lg object-cover border border-[#E8DFC8]"
+                />
+                <span className="truncate italic">
+                  Includes associated daily photo moment
+                </span>
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-3 pt-2">
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => setEntryToDelete(null)}
+                className="py-2.5 rounded-xl border border-[#E8DFC8] text-xs font-semibold text-[#4A3B32] hover:bg-[#FAF7F2] transition-colors"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={async () => {
+                  if (!entryToDelete) return;
+                  setIsDeleting(true);
+                  try {
+                    await onDeleteEntry(entryToDelete.id);
+                    if (readingEntry?.id === entryToDelete.id) {
+                      setReadingEntry(null);
+                    }
+                    setEntryToDelete(null);
+                  } catch (err) {
+                    console.error("Delete error:", err);
+                  } finally {
+                    setIsDeleting(false);
+                  }
+                }}
+                className="py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-semibold shadow-xs transition-colors flex items-center justify-center space-x-1.5"
+              >
+                {isDeleting ? (
+                  <span>Deleting...</span>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Delete Reflection</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -411,6 +503,24 @@ export const HistoryArchive: React.FC<HistoryArchiveProps> = ({
 
             {/* Modal Scroll Content */}
             <div className="p-6 overflow-y-auto space-y-5">
+              {/* Daily Photo if present */}
+              {readingEntry.photoUrl && (
+                <div className="bg-[#FAF7F2] p-4 rounded-2xl border border-[#E8DFC8] space-y-2 text-center">
+                  <div className="max-h-72 rounded-xl overflow-hidden bg-black/5 border border-[#E8DFC8] mx-auto">
+                    <img
+                      src={readingEntry.photoUrl}
+                      alt="Daily photo moment"
+                      className="w-full h-full max-h-72 object-contain mx-auto"
+                    />
+                  </div>
+                  {readingEntry.photoCaption && (
+                    <p className="text-xs font-journal italic text-[#2C241E]">
+                      "{readingEntry.photoCaption}"
+                    </p>
+                  )}
+                </div>
+              )}
+
               {readingEntry.summary && (
                 <div className="p-4 rounded-xl bg-[#F5EBE1]/70 border border-[#E8DFC8] space-y-1.5">
                   <span className="text-[10px] font-bold text-[#BA4A00] uppercase tracking-wider flex items-center space-x-1">
@@ -476,13 +586,23 @@ export const HistoryArchive: React.FC<HistoryArchiveProps> = ({
 
             {/* Modal Footer */}
             <div className="p-4 bg-[#FAF7F2] border-t border-[#E8DFC8] flex items-center justify-between">
-              <button
-                onClick={() => handleExportMarkdown(readingEntry)}
-                className="px-3.5 py-1.5 rounded-lg border border-[#E8DFC8] text-xs font-medium text-[#4A3B32] hover:bg-white flex items-center space-x-1.5"
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span>Export as Markdown</span>
-              </button>
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => handleExportMarkdown(readingEntry)}
+                  className="px-3.5 py-1.5 rounded-lg border border-[#E8DFC8] text-xs font-medium text-[#4A3B32] hover:bg-white flex items-center space-x-1.5"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Export as Markdown</span>
+                </button>
+
+                <button
+                  onClick={() => setEntryToDelete(readingEntry)}
+                  className="px-3 py-1.5 rounded-lg border border-red-200 text-xs font-medium text-red-600 hover:bg-red-50 flex items-center space-x-1.5 transition-colors"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Delete</span>
+                </button>
+              </div>
 
               <button
                 onClick={() => {

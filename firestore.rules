@@ -49,8 +49,12 @@ service cloud.firestore {
         && data.date is string && data.date.size() <= 32
         && (!('title' in data) || (data.title is string && data.title.size() <= 256))
         && (!('summary' in data) || (data.summary is string && data.summary.size() <= 4000))
+        && (!('initialThought' in data) || (data.initialThought is string && data.initialThought.size() <= 50000))
         && (!('mood' in data) || (data.mood is string && data.mood.size() <= 64))
         && (!('reflectionType' in data) || (data.reflectionType is string && data.reflectionType.size() <= 64))
+        && (!('photoUrl' in data) || data.photoUrl == null || (data.photoUrl is string && data.photoUrl.size() <= 1040000))
+        && (!('photoCaption' in data) || data.photoCaption == null || (data.photoCaption is string && data.photoCaption.size() <= 500))
+        && (!('hasVoiceNote' in data) || data.hasVoiceNote is bool)
         && (!('tags' in data) || (data.tags is list && data.tags.size() <= 20))
         && (!('messages' in data) || (data.messages is list && data.messages.size() <= 100))
         && (!('insights' in data) || (data.insights is list && data.insights.size() <= 20));

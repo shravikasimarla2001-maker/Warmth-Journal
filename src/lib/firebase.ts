@@ -201,6 +201,9 @@ export async function saveJournalEntry(
     messages: entry.messages || [],
     favorite: entry.favorite ?? false,
     wordCount: entry.wordCount || 0,
+    photoUrl: entry.photoUrl !== undefined ? entry.photoUrl : null,
+    photoCaption: entry.photoCaption !== undefined ? entry.photoCaption : null,
+    hasVoiceNote: entry.hasVoiceNote ?? false,
     createdAt: entry.createdAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   });

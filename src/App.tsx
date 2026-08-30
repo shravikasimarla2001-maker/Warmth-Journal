@@ -156,20 +156,24 @@ export default function App() {
       messages: entryData.messages || [],
       favorite: entryData.favorite || false,
       wordCount: entryData.wordCount || 0,
+      photoUrl: entryData.photoUrl || undefined,
+      photoCaption: entryData.photoCaption || undefined,
+      hasVoiceNote: entryData.hasVoiceNote || false,
       createdAt: entryData.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
 
     if (user) {
+      // Optimistic update for instant UI feedback
+      const updated = [newEntry, ...entries.filter((e) => e.id !== newEntry.id)];
+      setEntries(updated);
+
       try {
         const savedId = await saveJournalEntry(user.uid, newEntry);
         showToast("Reflection saved to your private Cloud Firestore!");
         return savedId;
       } catch (err: any) {
         console.error("Firestore save error:", err);
-        // Fallback local update
-        const updated = [newEntry, ...entries.filter((e) => e.id !== newEntry.id)];
-        setEntries(updated);
         localStorage.setItem("warmth_guest_entries", JSON.stringify(updated));
         showToast("Saved locally (Firestore sync pending).");
       }
@@ -184,6 +188,15 @@ export default function App() {
 
   // Delete Entry
   const handleDeleteEntry = async (entryId: string) => {
+    // Instant optimistic UI update
+    const updated = entries.filter((e) => e.id !== entryId);
+    setEntries(updated);
+    localStorage.setItem("warmth_guest_entries", JSON.stringify(updated));
+
+    if (currentEditingEntry?.id === entryId) {
+      setCurrentEditingEntry(null);
+    }
+
     if (user) {
       try {
         await deleteJournalEntry(user.uid, entryId);
@@ -193,14 +206,7 @@ export default function App() {
         showToast("Failed to delete entry from database.", "error");
       }
     } else {
-      const updated = entries.filter((e) => e.id !== entryId);
-      setEntries(updated);
-      localStorage.setItem("warmth_guest_entries", JSON.stringify(updated));
       showToast("Entry removed from local session.");
-    }
-
-    if (currentEditingEntry?.id === entryId) {
-      setCurrentEditingEntry(null);
     }
   };
 
@@ -360,6 +366,7 @@ export default function App() {
                 currentEntry={currentEditingEntry}
                 onSaveEntry={handleSaveEntry}
                 onNewEntry={handleNewEntry}
+                onDeleteEntry={handleDeleteEntry}
                 telemetry={telemetry}
               />
             )}
@@ -382,6 +389,8 @@ export default function App() {
                 onSelectEntry={handleSelectEntry}
                 onWriteForDate={handleWriteForDate}
                 onViewDateInHistory={handleViewDateInHistory}
+                onSaveEntry={handleSaveEntry}
+                onDeleteEntry={handleDeleteEntry}
               />
             )}
 
@@ -401,7 +410,7 @@ export default function App() {
               Warmth AI Journal
             </span>
             <span>·</span>
-            <span>Private User-Isolated Sanctuary</span>
+            <span>Your Thoughtful Space</span>
           </div>
 
           <div className="flex items-center space-x-4 text-[11px]">
