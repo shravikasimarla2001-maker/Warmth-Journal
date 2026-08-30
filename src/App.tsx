@@ -410,7 +410,7 @@ export default function App() {
               Warmth AI Journal
             </span>
             <span>·</span>
-            <span>Your Thoughtful Space</span>
+            <span>A gentle lens for your thoughts & days</span>
           </div>
 
           <div className="flex items-center space-x-4 text-[11px]">

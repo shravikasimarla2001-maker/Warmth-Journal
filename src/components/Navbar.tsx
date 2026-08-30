@@ -63,7 +63,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </span>
               </div>
               <p className="text-[11px] text-[#7E6E5F] hidden sm:block">
-                Your Thoughtful Space
+                A gentle lens for your thoughts & days
               </p>
             </div>
           </div>
