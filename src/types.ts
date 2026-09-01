@@ -18,6 +18,21 @@ export type ReflectionType =
   | "mindfulness"
   | "clarity_coaching";
 
+export type WisdomStream = "gita" | "stoic" | "buddhism" | "psychology";
+
+export interface DailyWisdomItem {
+  id: string;
+  stream: "gita" | "stoic" | "buddhism" | "psychology";
+  source: string; // e.g. "Bhagavad Gita 2.47", "Marcus Aurelius · Meditations 4.3"
+  authorOrTradition: string; // e.g. "Bhagavad Gita", "Stoic Wisdom", "Dhammapada", "Psychological Science"
+  originalText?: string; // Sanskrit Devanagari or Pali or Greek
+  transliteration?: string; // Romanized Sanskrit / Pali
+  translation: string; // Clear, accessible English translation
+  contextBridge: string; // "Why This Helps Today" explanation
+  moods: MoodType[];
+  theme: string;
+}
+
 export interface ChatMessage {
   id: string;
   sender: "user" | "gemini";
@@ -35,13 +50,14 @@ export interface JournalEntry {
   initialThought: string;
   summary: string;
   insights: string[];
-  reflectionType: ReflectionType;
+  // reflectionType: ReflectionType;
   messages: ChatMessage[];
   favorite?: boolean;
   wordCount: number;
   photoUrl?: string; // Daily photo moment (compressed base64 data URL)
   photoCaption?: string;
   hasVoiceNote?: boolean;
+  wisdom?: DailyWisdomItem; // Daily wisdom / shloka mapped to entry
   createdAt: string;
   updatedAt: string;
 }

@@ -86,6 +86,34 @@ export default function App() {
     }
   });
 
+  // Wisdom Bookmarks State
+  const [bookmarkedWisdomIds, setBookmarkedWisdomIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem("warmth_wisdom_bookmarks");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const handleToggleWisdomBookmark = (item: any) => {
+    setBookmarkedWisdomIds((prev) => {
+      const isSaved = prev.includes(item.id);
+      const updated = isSaved ? prev.filter((id) => id !== item.id) : [...prev, item.id];
+      try {
+        localStorage.setItem("warmth_wisdom_bookmarks", JSON.stringify(updated));
+      } catch {
+        // ignore
+      }
+      showToast(
+        isSaved
+          ? "Removed from Saved Wisdom."
+          : `Saved "${item.source}" to your Wisdom Treasury! 🪔`
+      );
+      return updated;
+    });
+  };
+
   // Modals & UI States
   const [isHabitManagerOpen, setIsHabitManagerOpen] = useState(false);
   const [celebrationMilestone, setCelebrationMilestone] = useState<UserMilestone | null>(null);
@@ -651,6 +679,8 @@ export default function App() {
                 onUpdateTomorrowChecklist={handleUpdateDailyChecklist}
                 onOpenHabitManager={() => setIsHabitManagerOpen(true)}
                 streakDays={streakDays}
+                bookmarkedWisdomIds={bookmarkedWisdomIds}
+                onToggleWisdomBookmark={handleToggleWisdomBookmark}
               />
             )}
 

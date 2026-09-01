@@ -289,28 +289,6 @@ export const InsightsMilestonesTab: React.FC<InsightsMilestonesTabProps> = ({
             A quiet sanctuary celebrating your daily consistency, mindful intentions, and emotional growth.
           </p>
         </div>
-
-        <div className="flex items-center space-x-2">
-          <button
-            onClick={onOpenHabitManager}
-            className="px-3.5 py-2 rounded-xl bg-white border border-[#E8DFC8] text-xs font-semibold text-[#2C241E] hover:bg-[#F5EBE1] transition-colors shadow-2xs"
-          >
-            Configure Habits
-          </button>
-
-          <button
-            onClick={handleGenerateAiSynthesis}
-            disabled={isLoadingSynthesis}
-            className="flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-[#BA4A00] text-white text-xs font-semibold hover:bg-[#A04000] disabled:opacity-50 transition-all shadow-xs"
-          >
-            {isLoadingSynthesis ? (
-              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <Sparkles className="w-3.5 h-3.5" />
-            )}
-            <span>{aiSynthesis ? "Refresh AI Synthesis" : "Generate AI Wellness Synthesis"}</span>
-          </button>
-        </div>
       </div>
 
       {/* 1. Bento Metric Cards (US-5) */}

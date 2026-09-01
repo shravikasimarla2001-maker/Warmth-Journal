@@ -449,6 +449,27 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
                           </p>
                         </div>
                       )}
+
+                      {/* Daily Wisdom / Gita Verse for this entry */}
+                      {entry.wisdom && (
+                        <div className="mt-2.5 p-2.5 rounded-xl bg-amber-50/70 border border-amber-200/60 text-[11px] text-[#4A3B32]">
+                          <div className="flex items-center space-x-1 text-[#BA4A00] font-semibold text-[10px] uppercase tracking-wider mb-0.5">
+                            <span>
+                              {entry.wisdom.stream === "gita"
+                                ? "🪔"
+                                : entry.wisdom.stream === "stoic"
+                                ? "🏛️"
+                                : entry.wisdom.stream === "buddhism"
+                                ? "🪷"
+                                : "🧠"}
+                            </span>
+                            <span>{entry.wisdom.source}</span>
+                          </div>
+                          <p className="line-clamp-2 italic font-serif text-[#3E3127]">
+                            "{entry.wisdom.translation}"
+                          </p>
+                        </div>
+                      )}
                     </div>
 
                     {/* Bottom Actions Footer */}

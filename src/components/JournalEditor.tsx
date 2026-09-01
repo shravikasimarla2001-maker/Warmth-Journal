@@ -36,16 +36,19 @@ import {
   ReflectionType,
   ModelTelemetry,
   DailySpark,
-} from "../types";
-import { User } from "firebase/auth";
-import { DailyPhotoModal } from "./DailyPhotoModal";
-import { VoiceDictationBar } from "./VoiceDictationBar";
-import { DailyChecklistDock } from "./DailyChecklistDock";
-import { PromptSparkPopover } from "./PromptSparkPopover";
-import {
+  DailyWisdomItem,
+  WisdomStream,
   DailyChecklist,
   HabitTemplate,
 } from "../types";
+import { User } from "firebase/auth";
+import { DailyPhotoModal } from "./DailyPhotoModal";
+// import { VoiceDictationBar } from "./VoiceDictationBar";
+import { DailyChecklistDock } from "./DailyChecklistDock";
+import { PromptSparkPopover } from "./PromptSparkPopover";
+import { DailyWisdomCard } from "./DailyWisdomCard";
+import { WisdomTreasuryModal } from "./WisdomTreasuryModal";
+import { getDailyWisdom } from "../data/wisdomLibrary";
 
 interface JournalEditorProps {
   user: User | null;
@@ -62,6 +65,8 @@ interface JournalEditorProps {
   onUpdateTomorrowChecklist?: (checklist: DailyChecklist) => Promise<void>;
   onOpenHabitManager?: () => void;
   streakDays?: number;
+  bookmarkedWisdomIds?: string[];
+  onToggleWisdomBookmark?: (item: DailyWisdomItem) => void;
 }
 
 const MOODS: { type: MoodType; label: string; icon: string; color: string }[] = [
@@ -100,6 +105,8 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
   onUpdateTomorrowChecklist,
   onOpenHabitManager,
   streakDays = 0,
+  bookmarkedWisdomIds = [],
+  onToggleWisdomBookmark,
 }) => {
   // Today's date YYYY-MM-DD
   const getTodayString = () => new Date().toISOString().split("T")[0];
@@ -117,7 +124,8 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
     currentEntry?.mood || "peaceful"
   );
   const [reflectionType, setReflectionType] = useState<ReflectionType>(
-    currentEntry?.reflectionType || "daily_reflection"
+    currentEntry?.reflectionType ||
+     "daily_reflection"
   );
   const [initialThought, setInitialThought] = useState<string>(
     currentEntry?.initialThought || ""
@@ -149,7 +157,57 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
   const [isDeleting, setIsDeleting] = useState(false);
   const [showVoiceBar, setShowVoiceBar] = useState(false);
 
-  // Speech Recognition / Voice Diary State
+  // Daily Wisdom & Gita Shloka State
+  const [preferredStream, setPreferredStream] = useState<WisdomStream>(() => {
+    try {
+      return (localStorage.getItem("warmth_wisdom_stream") as WisdomStream) || "gita";
+    } catch {
+      return "gita";
+    }
+  });
+  const [wisdomCycleOffset, setWisdomCycleOffset] = useState(0);
+  const [currentWisdom, setCurrentWisdom] = useState<DailyWisdomItem>(() => {
+    if (currentEntry?.wisdom) return currentEntry.wisdom;
+    return getDailyWisdom(currentEntry?.mood || "peaceful", "gita", 0);
+  });
+  const [isTreasuryOpen, setIsTreasuryOpen] = useState(false);
+
+  // Debounced auto-matching of wisdom based on entry content and mood
+  const autoMatchTimeoutRef = useRef<any>(null);
+
+  const triggerDynamicWisdomMatch = (text: string, currentSelectedMood: MoodType, stream: WisdomStream) => {
+    // If text has substantive thoughts (> 25 chars), call the LLM backend to analyze both mood & reflection
+    if (text.trim().length > 25) {
+      if (autoMatchTimeoutRef.current) {
+        clearTimeout(autoMatchTimeoutRef.current);
+      }
+      autoMatchTimeoutRef.current = setTimeout(async () => {
+        try {
+          const res = await fetch("/api/analyze-wisdom", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              entryText: text,
+              preferredStream: stream,
+              userMood: currentSelectedMood,
+            }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.wisdom) {
+              setCurrentWisdom(data.wisdom);
+            }
+          }
+        } catch (e) {
+          // Graceful fallback to mood library
+          setCurrentWisdom(getDailyWisdom(currentSelectedMood, stream, 0));
+        }
+      }, 1200); // 1.2s typing pause debounce
+    } else {
+      // For short / initial text, instantly synchronize with curated mood library
+      setCurrentWisdom(getDailyWisdom(currentSelectedMood, stream, 0));
+    }
+  };
   const [isVoiceListening, setIsVoiceListening] = useState(false);
   const [voiceDuration, setVoiceDuration] = useState(0);
   const [interimSpeech, setInterimSpeech] = useState("");
@@ -307,6 +365,11 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
       setFavorite(currentEntry.favorite || false);
       setPhotoUrl(currentEntry.photoUrl);
       setPhotoCaption(currentEntry.photoCaption || "");
+      if (currentEntry.wisdom) {
+        setCurrentWisdom(currentEntry.wisdom);
+      } else {
+        setCurrentWisdom(getDailyWisdom(currentEntry.mood || "peaceful", preferredStream, 0));
+      }
     } else {
       setEntryId("entry_" + Date.now());
       setDate(getTodayString());
@@ -321,6 +384,7 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
       setFavorite(false);
       setPhotoUrl(undefined);
       setPhotoCaption("");
+      setCurrentWisdom(getDailyWisdom("peaceful", preferredStream, 0));
     }
   }, [currentEntry]);
 
@@ -464,6 +528,7 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
       summary,
       insights,
       tags,
+      wisdom: currentWisdom,
       messages: customMessages || messages,
       favorite,
       wordCount,
@@ -737,7 +802,11 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
                   <button
                     key={m.type}
                     type="button"
-                    onClick={() => setMood(m.type)}
+                    onClick={() => {
+                      setMood(m.type);
+                      setWisdomCycleOffset(0);
+                      triggerDynamicWisdomMatch(initialThought, m.type, preferredStream);
+                    }}
                     className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-all flex items-center space-x-1.5 ${
                       mood === m.type
                         ? `${m.color} ring-2 ring-[#BA4A00]/40 font-semibold scale-102`
@@ -952,7 +1021,11 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
               <div className="relative">
                 <textarea
                   value={initialThought}
-                  onChange={(e) => setInitialThought(e.target.value)}
+                  onChange={(e) => {
+                    const nextVal = e.target.value;
+                    setInitialThought(nextVal);
+                    triggerDynamicWisdomMatch(nextVal, mood, preferredStream);
+                  }}
                   placeholder="Pour your thoughts freely onto this page... Or click 'Speak Thoughts' above to dictate naturally with your voice."
                   rows={12}
                   className="w-full p-4 rounded-xl bg-[#FAF7F2]/50 border border-[#E8DFC8] text-base text-[#2C241E] placeholder-[#A8988A] focus:outline-none focus:ring-2 focus:ring-[#BA4A00]/30 font-journal leading-relaxed resize-y"
@@ -1009,6 +1082,35 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
                   className="px-2.5 py-1 text-xs rounded-full bg-[#FAF7F2] border border-[#E8DFC8] text-[#2C241E] focus:outline-none focus:border-[#BA4A00] w-32"
                 />
               </div>
+            </div>
+
+            {/* Daily Wisdom & Gita Shloka Anchor Card */}
+            <div className="pt-4 border-t border-[#E8DFC8]">
+              <DailyWisdomCard
+                wisdom={currentWisdom}
+                currentMood={mood}
+                preferredStream={preferredStream}
+                onChangeStream={(stream) => {
+                  setPreferredStream(stream);
+                  try {
+                    localStorage.setItem("warmth_wisdom_stream", stream);
+                  } catch (e) {
+                    // ignore
+                  }
+                  setWisdomCycleOffset(0);
+                  // Update current wisdom immediately to the selected stream's library
+                  setCurrentWisdom(getDailyWisdom(mood, stream, 0));
+                  triggerDynamicWisdomMatch(initialThought, mood, stream);
+                }}
+                onCycleWisdom={() => {
+                  const nextOffset = wisdomCycleOffset + 1;
+                  setWisdomCycleOffset(nextOffset);
+                  setCurrentWisdom(getDailyWisdom(mood, preferredStream, nextOffset));
+                }}
+                onSaveBookmark={onToggleWisdomBookmark}
+                isBookmarked={bookmarkedWisdomIds?.includes(currentWisdom.id) || false}
+                onOpenTreasury={() => setIsTreasuryOpen(true)}
+              />
             </div>
           </div>
         </div>
@@ -1192,6 +1294,17 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Full Wisdom Treasury Modal */}
+      <WisdomTreasuryModal
+        isOpen={isTreasuryOpen}
+        onClose={() => setIsTreasuryOpen(false)}
+        bookmarkedIds={bookmarkedWisdomIds}
+        onToggleBookmark={onToggleWisdomBookmark}
+        onSelectWisdomForToday={(selectedItem) => {
+          setCurrentWisdom(selectedItem);
+        }}
+      />
     </div>
   );
 };
