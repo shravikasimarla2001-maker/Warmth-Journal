@@ -378,6 +378,108 @@ app.get("/api/sparks", (_req: Request, res: Response) => {
   res.json({ success: true, sparks });
 });
 
+// 5. Habit-to-Mood AI Insights & Synthesis Generator
+app.post("/api/habit-insights", async (req: Request, res: Response) => {
+  try {
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+    const {
+      habitStats = [],
+      recentEntries = [],
+      streakDays = 0,
+      totalCompletedHabits = 0,
+    } = body;
+
+    const statsSummary = Array.isArray(habitStats)
+      ? habitStats
+          .map(
+            (h: any) =>
+              `- Habit "${h.habitTitle}" (${h.category}): Completed on ${h.daysCompletedCount || 0} days. Avg mood when completed: ${Number(h.avgMoodScoreWhenCompleted || 0).toFixed(1)}/5 vs ${Number(h.avgMoodScoreWhenMissed || 0).toFixed(1)}/5 when missed (Uplift: ${Number(h.upliftPercentage || 0).toFixed(0)}%).`
+          )
+          .join("\n")
+      : "No specific habit stats recorded yet.";
+
+    const journalContext = Array.isArray(recentEntries)
+      ? recentEntries
+          .slice(0, 5)
+          .map(
+            (e: any) =>
+              `- Date ${e.date}: Mood ${e.mood}, Summary: "${e.summary || e.title || 'Personal reflection'}"`
+          )
+          .join("\n")
+      : "No recent journal entries.";
+
+    const prompt = `Analyze this user's habit tracking consistency and emotional journaling history. 
+Total Habits Completed: ${totalCompletedHabits}
+Current Consistency Streak: ${streakDays} days
+
+Habit & Mood Data:
+${statsSummary}
+
+Recent Journal Excerpts:
+${journalContext}
+
+Provide a deep, compassionate psychological synthesis of how their daily actions and micro-habits nurture their emotional well-being.
+Return ONLY valid JSON matching this schema:
+{
+  "synthesis": "A warm, insightful 2-paragraph analysis highlighting the positive emotional anchors created by their habits.",
+  "keyBreakthroughs": [
+    "3 distinct bullet points identifying specific correlations between their habits, energy, and inner peace."
+  ],
+  "highlightHabit": "The title of their most impactful habit based on mood uplift or frequency.",
+  "growthEncouragement": "A gentle, grounding 1-sentence mindful blessing for their upcoming days."
+}`;
+
+    const systemInstruction =
+      "You are 'Warmth', an empathetic wellness analyst and mindfulness coach. Output valid JSON only, without markdown or backticks.";
+
+    const result = await generateContentWithFallback(
+      prompt,
+      systemInstruction,
+      true
+    );
+
+    let parsedData;
+    try {
+      const cleanJson = result.text
+        .replace(/```json/gi, "")
+        .replace(/```/g, "")
+        .trim();
+      parsedData = JSON.parse(cleanJson);
+    } catch (parseError) {
+      console.warn("Habit insights JSON parsing failed, using heuristic fallback", parseError);
+      parsedData = {
+        synthesis:
+          "Your consistent commitment to intentional daily rituals is creating steady, visible anchors of calm in your days. When you carve out space for self-care and mindful focus, your emotional baseline shifts toward greater balance and resilience.",
+        keyBreakthroughs: [
+          "Consistent morning rituals correlate with noticeable increases in peace and clarity.",
+          "Small daily actions compound into greater emotional bandwidth during demanding days.",
+          "Pairing daily reflections with physical movement creates a grounding mind-body harmony.",
+        ],
+        highlightHabit: habitStats?.[0]?.habitTitle || "Mindful Reflection",
+        growthEncouragement:
+          "Honor every small victory you have claimed, and let your daily routines be an act of kindness rather than pressure.",
+      };
+    }
+
+    res.json({
+      success: true,
+      data: parsedData,
+      telemetry: {
+        modelUsed: result.modelUsed,
+        attemptedModels: result.attemptedModels,
+        fallbackTriggered: result.fallbackTriggered,
+        timestamp: new Date().toISOString(),
+      },
+    });
+  } catch (error: any) {
+    console.error("Habit insights error:", error);
+    res.status(500).json({
+      error: error.message || "Failed to generate habit insights",
+    });
+  }
+});
+
+
 // ==========================================
 // VITE INTEGRATION
 // ==========================================

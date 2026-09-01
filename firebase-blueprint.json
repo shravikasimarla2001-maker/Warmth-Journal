@@ -42,6 +42,54 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "userId", "date", "createdAt"]
+    },
+    "HabitTemplate": {
+      "title": "HabitTemplate",
+      "description": "Global recurring habit definition configured by the user.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 128 },
+        "category": { "type": "string", "enum": ["mind", "body", "focus", "creativity"] },
+        "icon": { "type": "string", "maxLength": 64 },
+        "isActive": { "type": "boolean" },
+        "order": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "title", "category", "icon", "isActive"]
+    },
+    "DailyChecklist": {
+      "title": "DailyChecklist",
+      "description": "Daily snapshot of completed recurring habits and custom priority focus tasks.",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string", "maxLength": 32 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "habits": { "type": "array" },
+        "priorityTasks": { "type": "array" },
+        "totalCompleted": { "type": "number" },
+        "totalItems": { "type": "number" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["date", "userId", "habits", "priorityTasks"]
+    },
+    "UserMilestone": {
+      "title": "UserMilestone",
+      "description": "Unlocked habit milestones, streak achievements, and digital memory postcards.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "badgeKey": { "type": "string", "maxLength": 64 },
+        "title": { "type": "string", "maxLength": 128 },
+        "description": { "type": "string", "maxLength": 256 },
+        "icon": { "type": "string", "maxLength": 64 },
+        "unlockedAt": { "type": "string", "format": "date-time" },
+        "postcardData": { "type": "object" }
+      },
+      "required": ["id", "userId", "badgeKey", "title", "unlockedAt"]
     }
   },
   "firestore": {
@@ -52,6 +100,18 @@
     "/users/{userId}/entries/{entryId}": {
       "schema": "JournalEntry",
       "description": "Owner-isolated journal entries and multi-turn reflections."
+    },
+    "/users/{userId}/habitTemplates/{templateId}": {
+      "schema": "HabitTemplate",
+      "description": "Owner-isolated recurring habit templates."
+    },
+    "/users/{userId}/dailyChecklists/{dateKey}": {
+      "schema": "DailyChecklist",
+      "description": "Owner-isolated daily habit checks and priority focus tasks."
+    },
+    "/users/{userId}/milestones/{milestoneId}": {
+      "schema": "UserMilestone",
+      "description": "Owner-isolated unlocked milestone badges and memory postcards."
     }
   }
 }

@@ -22,7 +22,13 @@ import {
   updateDoc,
 } from "firebase/firestore";
 import firebaseConfig from "../../firebase-applet-config.json";
-import { JournalEntry, UserProfile } from "../types";
+import {
+  JournalEntry,
+  UserProfile,
+  HabitTemplate,
+  DailyChecklist,
+  UserMilestone,
+} from "../types";
 
 // Initialize Firebase App
 const app = initializeApp(firebaseConfig);
@@ -246,3 +252,265 @@ export async function deleteJournalEntry(
     handleFirestoreError(error, OperationType.DELETE, path);
   }
 }
+
+// =====================================================
+// HABIT TEMPLATES CRUD & REALTIME LISTENER
+// =====================================================
+
+export const DEFAULT_HABIT_TEMPLATES: HabitTemplate[] = [
+  {
+    id: "habit_preset_1",
+    userId: "default",
+    title: "Morning Sunlight & Hydration",
+    category: "body",
+    icon: "Sun",
+    isActive: true,
+    order: 0,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: "habit_preset_2",
+    userId: "default",
+    title: "15-min Mindful Reading",
+    category: "mind",
+    icon: "Book",
+    isActive: true,
+    order: 1,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: "habit_preset_3",
+    userId: "default",
+    title: "Gentle Movement / Walk",
+    category: "body",
+    icon: "Footprints",
+    isActive: true,
+    order: 2,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: "habit_preset_4",
+    userId: "default",
+    title: "Gratitude & Stillness",
+    category: "mind",
+    icon: "Heart",
+    isActive: true,
+    order: 3,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: "habit_preset_5",
+    userId: "default",
+    title: "Uninterrupted Deep Work Block",
+    category: "focus",
+    icon: "Sparkles",
+    isActive: true,
+    order: 4,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: "habit_preset_6",
+    userId: "default",
+    title: "Screen-Free Evening Wind Down",
+    category: "mind",
+    icon: "Moon",
+    isActive: true,
+    order: 5,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+];
+
+export function subscribeToHabitTemplates(
+  userId: string,
+  onData: (templates: HabitTemplate[]) => void,
+  onError?: (err: any) => void
+): Unsubscribe {
+  const path = `users/${userId}/habitTemplates`;
+  const q = query(
+    collection(db, "users", userId, "habitTemplates"),
+    orderBy("order", "asc")
+  );
+
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const list = snapshot.docs.map((docSnap) => ({
+        id: docSnap.id,
+        ...docSnap.data(),
+      })) as HabitTemplate[];
+      onData(list);
+    },
+    (error) => {
+      handleFirestoreError(error, OperationType.LIST, path);
+      if (onError) onError(error);
+    }
+  );
+}
+
+export async function saveHabitTemplate(
+  userId: string,
+  template: Partial<HabitTemplate> & { title: string }
+): Promise<string> {
+  const templateId = template.id || "habit_" + Date.now() + "_" + Math.random().toString(36).substring(2, 6);
+  const path = `users/${userId}/habitTemplates/${templateId}`;
+  const docRef = doc(db, "users", userId, "habitTemplates", templateId);
+
+  const cleanData = sanitizeForFirestore({
+    id: templateId,
+    userId,
+    title: template.title.trim(),
+    category: template.category || "mind",
+    icon: template.icon || "Sparkles",
+    isActive: template.isActive ?? true,
+    order: template.order ?? Date.now(),
+    createdAt: template.createdAt || new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  });
+
+  try {
+    await setDoc(docRef, cleanData);
+    return templateId;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+export async function deleteHabitTemplate(
+  userId: string,
+  templateId: string
+): Promise<void> {
+  const path = `users/${userId}/habitTemplates/${templateId}`;
+  try {
+    await deleteDoc(doc(db, "users", userId, "habitTemplates", templateId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}
+
+// =====================================================
+// DAILY CHECKLISTS CRUD & REALTIME LISTENER
+// =====================================================
+
+export function subscribeToDailyChecklists(
+  userId: string,
+  onData: (checklists: Record<string, DailyChecklist>) => void,
+  onError?: (err: any) => void
+): Unsubscribe {
+  const path = `users/${userId}/dailyChecklists`;
+  const q = collection(db, "users", userId, "dailyChecklists");
+
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const map: Record<string, DailyChecklist> = {};
+      snapshot.docs.forEach((docSnap) => {
+        const data = docSnap.data() as DailyChecklist;
+        map[docSnap.id] = {
+          date: docSnap.id,
+          ...data,
+        };
+      });
+      onData(map);
+    },
+    (error) => {
+      handleFirestoreError(error, OperationType.LIST, path);
+      if (onError) onError(error);
+    }
+  );
+}
+
+export async function saveDailyChecklist(
+  userId: string,
+  checklist: DailyChecklist
+): Promise<void> {
+  const path = `users/${userId}/dailyChecklists/${checklist.date}`;
+  const docRef = doc(db, "users", userId, "dailyChecklists", checklist.date);
+
+  const cleanData = sanitizeForFirestore({
+    date: checklist.date,
+    userId,
+    habits: checklist.habits || [],
+    priorityTasks: checklist.priorityTasks || [],
+    totalCompleted: checklist.totalCompleted ?? 0,
+    totalItems: checklist.totalItems ?? 0,
+    updatedAt: new Date().toISOString(),
+  });
+
+  try {
+    await setDoc(docRef, cleanData);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+// =====================================================
+// MILESTONES & MEMORY POSTCARDS CRUD
+// =====================================================
+
+export function subscribeToMilestones(
+  userId: string,
+  onData: (milestones: UserMilestone[]) => void,
+  onError?: (err: any) => void
+): Unsubscribe {
+  const path = `users/${userId}/milestones`;
+  const q = query(
+    collection(db, "users", userId, "milestones"),
+    orderBy("unlockedAt", "desc")
+  );
+
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const list = snapshot.docs.map((docSnap) => ({
+        id: docSnap.id,
+        ...docSnap.data(),
+      })) as UserMilestone[];
+      onData(list);
+    },
+    (error) => {
+      handleFirestoreError(error, OperationType.LIST, path);
+      if (onError) onError(error);
+    }
+  );
+}
+
+export async function saveMilestone(
+  userId: string,
+  milestone: UserMilestone
+): Promise<void> {
+  const path = `users/${userId}/milestones/${milestone.id}`;
+  const docRef = doc(db, "users", userId, "milestones", milestone.id);
+
+  const cleanData = sanitizeForFirestore({
+    id: milestone.id,
+    userId,
+    badgeKey: milestone.badgeKey,
+    title: milestone.title,
+    description: milestone.description,
+    icon: milestone.icon,
+    unlockedAt: milestone.unlockedAt || new Date().toISOString(),
+    postcardData: milestone.postcardData ? {
+      date: milestone.postcardData.date,
+      photoUrl: milestone.postcardData.photoUrl || null,
+      photoCaption: milestone.postcardData.photoCaption || null,
+      mood: milestone.postcardData.mood || "peaceful",
+      habitsCompleted: milestone.postcardData.habitsCompleted || [],
+      tasksCompleted: milestone.postcardData.tasksCompleted || [],
+      journalExcerpt: milestone.postcardData.journalExcerpt || "",
+      reflectionTitle: milestone.postcardData.reflectionTitle || "",
+    } : null,
+  });
+
+  try {
+    await setDoc(docRef, cleanData);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+

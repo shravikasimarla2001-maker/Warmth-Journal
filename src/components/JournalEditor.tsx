@@ -40,6 +40,12 @@ import {
 import { User } from "firebase/auth";
 import { DailyPhotoModal } from "./DailyPhotoModal";
 import { VoiceDictationBar } from "./VoiceDictationBar";
+import { DailyChecklistDock } from "./DailyChecklistDock";
+import { PromptSparkPopover } from "./PromptSparkPopover";
+import {
+  DailyChecklist,
+  HabitTemplate,
+} from "../types";
 
 interface JournalEditorProps {
   user: User | null;
@@ -49,6 +55,13 @@ interface JournalEditorProps {
   onDeleteEntry?: (entryId: string) => Promise<void> | void;
   telemetry: ModelTelemetry | null;
   onSelectDateInCalendar?: (date: string) => void;
+  dailyChecklist?: DailyChecklist | null;
+  tomorrowChecklist?: DailyChecklist | null;
+  habitTemplates?: HabitTemplate[];
+  onUpdateChecklist?: (checklist: DailyChecklist) => Promise<void>;
+  onUpdateTomorrowChecklist?: (checklist: DailyChecklist) => Promise<void>;
+  onOpenHabitManager?: () => void;
+  streakDays?: number;
 }
 
 const MOODS: { type: MoodType; label: string; icon: string; color: string }[] = [
@@ -80,6 +93,13 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
   onNewEntry,
   onDeleteEntry,
   telemetry,
+  dailyChecklist,
+  tomorrowChecklist,
+  habitTemplates = [],
+  onUpdateChecklist,
+  onUpdateTomorrowChecklist,
+  onOpenHabitManager,
+  streakDays = 0,
 }) => {
   // Today's date YYYY-MM-DD
   const getTodayString = () => new Date().toISOString().split("T")[0];
@@ -801,6 +821,14 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
                 </div>
 
                 <div className="flex items-center space-x-2">
+                  {/* Prompt Sparks 1-Click Dropdown */}
+                  <PromptSparkPopover
+                    onApplyPrompt={(promptText, sparkType) => {
+                      handleApplySpark(promptText);
+                      setReflectionType(sparkType);
+                    }}
+                  />
+
                   {/* Speak Thoughts / Voice Diary Button */}
                   {isVoiceListening ? (
                     <button
@@ -985,39 +1013,100 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
           </div>
         </div>
 
-        {/* Right Column (5 cols): Multi-Turn AI Reflections & Insights */}
+        {/* Right Column (5 cols): Daily Habits & Focus Tasks + Multi-Turn AI Reflections */}
         <div className="lg:col-span-5 space-y-6">
-          {/* Multi-Turn AI Reflection Chat Panel */}
-          <div className="bg-white rounded-2xl border border-[#E8DFC8] shadow-xs flex flex-col h-[560px] overflow-hidden">
+          {/* Interactive Daily Checklist & Tomorrow Planning Dock */}
+          {onUpdateChecklist && onUpdateTomorrowChecklist && onOpenHabitManager && (
+            <DailyChecklistDock
+              currentDate={date}
+              checklist={dailyChecklist || null}
+              habitTemplates={habitTemplates}
+              tomorrowChecklist={tomorrowChecklist || null}
+              onUpdateChecklist={onUpdateChecklist}
+              onUpdateTomorrowChecklist={onUpdateTomorrowChecklist}
+              onOpenHabitManager={onOpenHabitManager}
+              streakDays={streakDays}
+            />
+          )}
+
+          {/* Unified Multi-Turn AI Companion & Insights Panel */}
+          <div className="bg-white rounded-2xl border border-[#E8DFC8] shadow-xs flex flex-col h-[600px] overflow-hidden">
             {/* Header */}
             <div className="p-4 bg-[#FAF7F2] border-b border-[#E8DFC8] flex items-center justify-between">
               <div className="flex items-center space-x-2">
-                <div className="w-7 h-7 rounded-lg bg-[#D35400] text-white flex items-center justify-center">
+                <div className="w-7 h-7 rounded-lg bg-[#D35400] text-white flex items-center justify-center shadow-xs">
                   <Sparkles className="w-4 h-4" />
                 </div>
                 <div>
                   <h4 className="font-display font-semibold text-sm text-[#2C241E]">
-                    Converse with Warmth
+                    Warmth AI Companion
                   </h4>
                   <p className="text-[10px] text-[#7E6E5F]">
-                    Multi-turn empathetic Gemini reflection
+                    Empathetic reflections & insights
                   </p>
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={() => handleSendReflection()}
-                disabled={isReflecting || !initialThought.trim()}
-                className="text-xs px-2.5 py-1 rounded-lg bg-white border border-[#E8DFC8] text-[#BA4A00] font-semibold hover:bg-[#F5EBE1] disabled:opacity-50 transition-colors"
-              >
-                Reflect on Entry
-              </button>
+              <div className="flex items-center space-x-1.5">
+                <button
+                  type="button"
+                  onClick={handleSummarizeEntry}
+                  disabled={isSummarizing || (!initialThought.trim() && messages.length === 0)}
+                  className="text-xs px-2.5 py-1 rounded-lg bg-white border border-[#E8DFC8] text-[#935116] font-semibold hover:bg-[#F5EBE1] disabled:opacity-40 transition-colors flex items-center space-x-1"
+                  title="Synthesize core essence & takeaways"
+                >
+                  {isSummarizing ? (
+                    <RefreshCw className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <Layers className="w-3 h-3 text-[#BA4A00]" />
+                  )}
+                  <span>{summary ? "Re-Synthesize" : "Synthesize"}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleSendReflection()}
+                  disabled={isReflecting || !initialThought.trim()}
+                  className="text-xs px-2.5 py-1 rounded-lg bg-[#D35400] text-white font-semibold hover:bg-[#BA4A00] disabled:opacity-40 transition-colors shadow-xs"
+                >
+                  Reflect
+                </button>
+              </div>
             </div>
 
-            {/* Chat Log Message Stream */}
+            {/* Scrollable Content Stream: Highlights + Chat */}
             <div className="flex-1 overflow-y-auto p-4 space-y-3.5 bg-[#FAF7F2]/30">
-              {messages.length === 0 ? (
+              {/* Optional Synthesized Essence Block (if present) */}
+              {summary && (
+                <div className="p-3.5 rounded-2xl bg-amber-50/70 border border-amber-200/80 space-y-2 animate-fade-in">
+                  <div className="flex items-center justify-between text-[10px] font-bold text-amber-900 uppercase tracking-wider">
+                    <span className="flex items-center space-x-1">
+                      <Sparkles className="w-3 h-3 text-[#E67E22]" />
+                      <span>Distilled Essence</span>
+                    </span>
+                    {insights.length > 0 && <span>{insights.length} Takeaways</span>}
+                  </div>
+                  <p className="text-xs font-journal text-[#3E3127] italic leading-relaxed">
+                    "{summary}"
+                  </p>
+                  {insights.length > 0 && (
+                    <div className="pt-1.5 border-t border-amber-200/50 space-y-1">
+                      {insights.map((insight, idx) => (
+                        <div
+                          key={idx}
+                          className="text-[11px] text-[#4A3B32] font-journal flex items-start space-x-1.5"
+                        >
+                          <span className="text-[#BA4A00] font-bold">•</span>
+                          <span>{insight}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Chat Message Stream */}
+              {messages.length === 0 && !summary ? (
                 <div className="h-full flex flex-col items-center justify-center text-center p-6 text-[#8C7B6C] space-y-3">
                   <div className="w-12 h-12 rounded-full bg-[#F5EBE1] flex items-center justify-center text-[#BA4A00]">
                     <Feather className="w-6 h-6" />
@@ -1027,8 +1116,7 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
                       Your reflective sanctuary is quiet
                     </p>
                     <p className="text-[11px] max-w-xs">
-                      Write your journal entry on the left, then click "Reflect on
-                      Entry" or ask a question below to begin your dialogue.
+                      Write your thoughts on the left, then click <strong>"Reflect"</strong> or <strong>"Synthesize"</strong> above to explore deeper.
                     </p>
                   </div>
                 </div>
@@ -1088,89 +1176,19 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
                   type="text"
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
-                  placeholder="Share a follow-up or explore deeper..."
+                  placeholder="Ask a question or explore a thought deeper..."
                   disabled={isReflecting}
                   className="flex-1 px-3.5 py-2 rounded-xl bg-[#FAF7F2] border border-[#E8DFC8] text-xs text-[#2C241E] placeholder-[#9E8E80] focus:outline-none focus:ring-2 focus:ring-[#BA4A00]/40 font-journal"
                 />
                 <button
                   type="submit"
                   disabled={!chatInput.trim() || isReflecting}
-                  className="p-2 bg-[#D35400] hover:bg-[#BA4A00] disabled:opacity-40 text-white rounded-xl transition-all shadow-xs shrink-0"
+                  className="p-2 bg-[#D35400] hover:bg-[#BA4A00] disabled:opacity-40 text-white rounded-xl transition-all shadow-xs shrink-0 cursor-pointer"
                 >
                   <Send className="w-4 h-4" />
                 </button>
               </form>
             </div>
-          </div>
-
-          {/* AI Insights & Summary Synthesizer Card */}
-          <div className="bg-white rounded-2xl p-5 border border-[#E8DFC8] shadow-xs space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <div className="w-7 h-7 rounded-lg bg-[#F5EBE1] text-[#BA4A00] flex items-center justify-center">
-                  <Layers className="w-4 h-4" />
-                </div>
-                <div>
-                  <h4 className="font-display font-semibold text-sm text-[#2C241E]">
-                    AI Synthesis & Key Takeaways
-                  </h4>
-                  <p className="text-[10px] text-[#7E6E5F]">
-                    Distill key themes and emotional arc
-                  </p>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleSummarizeEntry}
-                disabled={isSummarizing || (!initialThought.trim() && messages.length === 0)}
-                className="text-xs px-3 py-1.5 bg-[#F5EBE1] hover:bg-[#E8DFC8] text-[#935116] font-semibold rounded-lg transition-all flex items-center space-x-1 disabled:opacity-40"
-              >
-                {isSummarizing ? (
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Sparkles className="w-3.5 h-3.5" />
-                )}
-                <span>{summary ? "Re-Synthesize" : "Synthesize AI Summary"}</span>
-              </button>
-            </div>
-
-            {summary ? (
-              <div className="space-y-3 pt-2">
-                <div className="p-3.5 rounded-xl bg-[#FAF7F2] border border-[#E8DFC8]">
-                  <span className="text-[10px] font-bold text-[#8C7B6C] uppercase tracking-wider block mb-1">
-                    Core Essence
-                  </span>
-                  <p className="text-xs font-journal text-[#3E3127] leading-relaxed">
-                    {summary}
-                  </p>
-                </div>
-
-                {insights.length > 0 && (
-                  <div className="space-y-1.5">
-                    <span className="text-[10px] font-bold text-[#8C7B6C] uppercase tracking-wider">
-                      Key Takeaways
-                    </span>
-                    <ul className="space-y-1">
-                      {insights.map((insight, idx) => (
-                        <li
-                          key={idx}
-                          className="text-xs text-[#4A3B32] font-journal flex items-start space-x-1.5"
-                        >
-                          <span className="text-[#BA4A00] font-bold mt-0.5">•</span>
-                          <span>{insight}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="p-4 rounded-xl bg-[#FAF7F2] border border-dashed border-[#E8DFC8] text-center text-xs text-[#8C7B6C]">
-                Click "Synthesize AI Summary" once you have written your thoughts
-                to generate key insights and an evocative title.
-              </div>
-            )}
           </div>
         </div>
       </div>

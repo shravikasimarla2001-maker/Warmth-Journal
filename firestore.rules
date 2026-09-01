@@ -77,6 +77,27 @@ service cloud.firestore {
         allow create: if isOwner(userId) && isValidId(entryId) && isValidJournalEntry(incoming(), userId);
         allow update: if isOwner(userId) && isValidId(entryId) && isValidJournalEntry(incoming(), userId) && incoming().userId == existing().userId;
       }
+
+      // Isolated Habit Templates Subcollection
+      match /habitTemplates/{templateId} {
+        allow get, delete: if isOwner(userId) && isValidId(templateId);
+        allow list: if isOwner(userId);
+        allow create, update: if isOwner(userId) && isValidId(templateId);
+      }
+
+      // Isolated Daily Checklists Subcollection (date-keyed e.g., 2026-09-01)
+      match /dailyChecklists/{dateKey} {
+        allow get, delete: if isOwner(userId) && isValidId(dateKey);
+        allow list: if isOwner(userId);
+        allow create, update: if isOwner(userId) && isValidId(dateKey);
+      }
+
+      // Isolated Milestones Subcollection
+      match /milestones/{milestoneId} {
+        allow get, delete: if isOwner(userId) && isValidId(milestoneId);
+        allow list: if isOwner(userId);
+        allow create, update: if isOwner(userId) && isValidId(milestoneId);
+      }
     }
   }
 }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { User, signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
 import {
   auth,
@@ -9,19 +9,35 @@ import {
   saveJournalEntry,
   deleteJournalEntry,
   toggleFavoriteEntry,
+  subscribeToHabitTemplates,
+  saveHabitTemplate,
+  deleteHabitTemplate,
+  subscribeToDailyChecklists,
+  saveDailyChecklist,
+  subscribeToMilestones,
+  saveMilestone,
+  DEFAULT_HABIT_TEMPLATES,
 } from "./lib/firebase";
-import { JournalEntry, ModelTelemetry, ReflectionType } from "./types";
+import {
+  JournalEntry,
+  ModelTelemetry,
+  ReflectionType,
+  HabitTemplate,
+  DailyChecklist,
+  UserMilestone,
+} from "./types";
 import { Navbar } from "./components/Navbar";
 import { LandingHero } from "./components/LandingHero";
 import { JournalEditor } from "./components/JournalEditor";
-import { HistoryArchive } from "./components/HistoryArchive";
-import { CalendarView } from "./components/CalendarView";
-import { PromptSparksTab } from "./components/PromptSparksTab";
-import { ShieldCheck, AlertTriangle, CheckCircle2, Feather, Heart } from "lucide-react";
+import { MemoriesView } from "./components/MemoriesView";
+import { HabitManagerModal } from "./components/HabitManagerModal";
+import { InsightsMilestonesTab, BADGE_DEFINITIONS } from "./components/InsightsMilestonesTab";
+import { MilestoneCelebrationModal } from "./components/MilestoneCelebrationModal";
+import { ShieldCheck, AlertTriangle, CheckCircle2, Feather } from "lucide-react";
 
 export default function App() {
-  // Navigation State
-  const [activeTab, setActiveTab] = useState<"editor" | "history" | "calendar" | "sparks">("editor");
+  // Navigation State: 3 Streamlined Core Tabs
+  const [activeTab, setActiveTab] = useState<"today" | "memories" | "insights">("today");
 
   // Firebase Auth & Database Connection State
   const [user, setUser] = useState<User | null>(null);
@@ -40,6 +56,40 @@ export default function App() {
     }
   });
 
+  // Habit Templates State
+  const [habitTemplates, setHabitTemplates] = useState<HabitTemplate[]>(() => {
+    try {
+      const local = localStorage.getItem("warmth_guest_habits");
+      return local ? JSON.parse(local) : DEFAULT_HABIT_TEMPLATES;
+    } catch {
+      return DEFAULT_HABIT_TEMPLATES;
+    }
+  });
+
+  // Daily Checklists Map (Keyed by "YYYY-MM-DD")
+  const [dailyChecklists, setDailyChecklists] = useState<Record<string, DailyChecklist>>(() => {
+    try {
+      const local = localStorage.getItem("warmth_guest_checklists");
+      return local ? JSON.parse(local) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  // Milestones State
+  const [milestones, setMilestones] = useState<UserMilestone[]>(() => {
+    try {
+      const local = localStorage.getItem("warmth_guest_milestones");
+      return local ? JSON.parse(local) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Modals & UI States
+  const [isHabitManagerOpen, setIsHabitManagerOpen] = useState(false);
+  const [celebrationMilestone, setCelebrationMilestone] = useState<UserMilestone | null>(null);
+
   // Current Entry in Editor
   const [currentEditingEntry, setCurrentEditingEntry] = useState<JournalEntry | null>(null);
 
@@ -48,7 +98,6 @@ export default function App() {
 
   // Feedback notifications
   const [notification, setNotification] = useState<{ message: string; type: "success" | "error" } | null>(null);
-  const [showLandingModal, setShowLandingModal] = useState(false);
 
   const showToast = (message: string, type: "success" | "error" = "success") => {
     setNotification({ message, type });
@@ -78,6 +127,11 @@ export default function App() {
 
   // 2. Firebase Auth & Realtime Firestore Synchronization
   useEffect(() => {
+    let unsubEntries: () => void = () => {};
+    let unsubHabits: () => void = () => {};
+    let unsubChecklists: () => void = () => {};
+    let unsubMilestones: () => void = () => {};
+
     const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       setIsAuthLoading(false);
@@ -91,35 +145,188 @@ export default function App() {
         }
 
         // Attach Realtime Listener to owner-bound Firestore subcollection: /users/{uid}/entries
-        const unsubEntries = subscribeToUserEntries(
+        unsubEntries = subscribeToUserEntries(
           currentUser.uid,
           (cloudEntries) => {
             setEntries(cloudEntries);
           },
           (err) => {
-            console.warn("Firestore snapshot error:", err);
+            console.warn("Firestore entries snapshot error:", err);
           }
         );
 
-        return () => {
-          unsubEntries();
-        };
+        // Attach Realtime Listener to /users/{uid}/habitTemplates
+        unsubHabits = subscribeToHabitTemplates(
+          currentUser.uid,
+          (cloudHabits) => {
+            if (cloudHabits.length > 0) {
+              setHabitTemplates(cloudHabits);
+            } else {
+              setHabitTemplates(DEFAULT_HABIT_TEMPLATES);
+            }
+          },
+          (err) => {
+            console.warn("Firestore habits snapshot error:", err);
+          }
+        );
+
+        // Attach Realtime Listener to /users/{uid}/dailyChecklists
+        unsubChecklists = subscribeToDailyChecklists(
+          currentUser.uid,
+          (cloudChecklists) => {
+            setDailyChecklists(cloudChecklists);
+          },
+          (err) => {
+            console.warn("Firestore checklists snapshot error:", err);
+          }
+        );
+
+        // Attach Realtime Listener to /users/{uid}/milestones
+        unsubMilestones = subscribeToMilestones(
+          currentUser.uid,
+          (cloudMilestones) => {
+            setMilestones(cloudMilestones);
+          },
+          (err) => {
+            console.warn("Firestore milestones snapshot error:", err);
+          }
+        );
       } else {
-        // Logged out - reset editor and load guest entries if any
+        // Logged out - reset editor and load guest state
         setCurrentEditingEntry(null);
-        setActiveTab("editor");
+        setActiveTab("today");
         setSelectedFilterDate(null);
         try {
-          const stored = localStorage.getItem("warmth_guest_entries");
-          setEntries(stored ? JSON.parse(stored) : []);
+          const storedEntries = localStorage.getItem("warmth_guest_entries");
+          setEntries(storedEntries ? JSON.parse(storedEntries) : []);
+
+          const storedHabits = localStorage.getItem("warmth_guest_habits");
+          setHabitTemplates(storedHabits ? JSON.parse(storedHabits) : DEFAULT_HABIT_TEMPLATES);
+
+          const storedChecklists = localStorage.getItem("warmth_guest_checklists");
+          setDailyChecklists(storedChecklists ? JSON.parse(storedChecklists) : {});
+
+          const storedMilestones = localStorage.getItem("warmth_guest_milestones");
+          setMilestones(storedMilestones ? JSON.parse(storedMilestones) : []);
         } catch {
           setEntries([]);
+          setHabitTemplates(DEFAULT_HABIT_TEMPLATES);
+          setDailyChecklists({});
+          setMilestones([]);
         }
       }
     });
 
-    return () => unsubscribeAuth();
+    return () => {
+      unsubscribeAuth();
+      unsubEntries();
+      unsubHabits();
+      unsubChecklists();
+      unsubMilestones();
+    };
   }, []);
+
+  // Compute Active Date Keys
+  const todayDateStr = useMemo(() => new Date().toISOString().split("T")[0], []);
+  const activeEditorDate = currentEditingEntry?.date || todayDateStr;
+
+  const tomorrowDateObj = new Date(activeEditorDate + "T12:00:00Z");
+  tomorrowDateObj.setDate(tomorrowDateObj.getDate() + 1);
+  const tomorrowDateStr = tomorrowDateObj.toISOString().split("T")[0];
+
+  const currentChecklist = dailyChecklists[activeEditorDate] || null;
+  const tomorrowChecklist = dailyChecklists[tomorrowDateStr] || null;
+
+  // Compute Current Streak Days
+  const streakDays = useMemo(() => {
+    const today = new Date();
+    let count = 0;
+    let checkDate = new Date(today);
+
+    for (let i = 0; i < 60; i++) {
+      const dateStr = checkDate.toISOString().split("T")[0];
+      const cl = dailyChecklists[dateStr];
+      const hasCompleted = cl && (cl.totalCompleted > 0 || cl.habits?.some((h) => h.completed));
+
+      if (hasCompleted) {
+        count++;
+        checkDate.setDate(checkDate.getDate() - 1);
+      } else if (i === 0) {
+        checkDate.setDate(checkDate.getDate() - 1);
+      } else {
+        break;
+      }
+    }
+    return count;
+  }, [dailyChecklists]);
+
+  // Milestone Checker Engine
+  const evaluateAndAwardMilestones = async (
+    checklistsMap: Record<string, DailyChecklist>,
+    allEntries: JournalEntry[]
+  ) => {
+    let totalHabitsCompleted = 0;
+    let totalTasksCompleted = 0;
+    Object.values(checklistsMap).forEach((cl) => {
+      totalHabitsCompleted += cl.habits?.filter((h) => h.completed).length || 0;
+      totalTasksCompleted += cl.priorityTasks?.filter((t) => t.completed).length || 0;
+    });
+
+    const photosCount = allEntries.filter((e) => !!e.photoUrl).length;
+    const existingBadgeKeys = new Set(milestones.map((m) => m.badgeKey));
+
+    for (const badge of BADGE_DEFINITIONS) {
+      if (existingBadgeKeys.has(badge.key)) continue;
+
+      let achieved = false;
+      if (badge.type === "streak" && streakDays >= badge.requirement) achieved = true;
+      else if (badge.type === "total_habits" && totalHabitsCompleted >= badge.requirement) achieved = true;
+      else if (badge.type === "focus_tasks" && totalTasksCompleted >= badge.requirement) achieved = true;
+      else if (badge.type === "photos" && photosCount >= badge.requirement) achieved = true;
+      else if (badge.type === "entries" && allEntries.length >= badge.requirement) achieved = true;
+      else if (
+        badge.type === "tasks_or_habits" &&
+        totalHabitsCompleted + totalTasksCompleted >= badge.requirement
+      ) {
+        achieved = true;
+      }
+
+      if (achieved) {
+        const todayCl = checklistsMap[todayDateStr];
+        const newMilestone: UserMilestone = {
+          id: "milestone_" + badge.key,
+          userId: user ? user.uid : "guest_user",
+          badgeKey: badge.key,
+          title: badge.title,
+          description: badge.description,
+          icon: badge.icon,
+          unlockedAt: new Date().toISOString(),
+          postcardData: {
+            date: todayDateStr,
+            photoUrl: allEntries[0]?.photoUrl,
+            photoCaption: allEntries[0]?.photoCaption,
+            mood: allEntries[0]?.mood || "peaceful",
+            journalExcerpt: allEntries[0]?.summary || allEntries[0]?.initialThought.slice(0, 100) || "Consistent practice",
+            habitsCompleted: todayCl?.habits?.filter((h) => h.completed).map((h) => h.title) || [],
+            tasksCompleted: todayCl?.priorityTasks?.filter((t) => t.completed).map((t) => t.text) || [],
+          },
+        };
+
+        // Save milestone
+        if (user) {
+          await saveMilestone(user.uid, newMilestone);
+        } else {
+          const updated = [...milestones, newMilestone];
+          setMilestones(updated);
+          localStorage.setItem("warmth_guest_milestones", JSON.stringify(updated));
+        }
+
+        // Trigger celebratory popup!
+        setCelebrationMilestone(newMilestone);
+        break;
+      }
+    }
+  };
 
   // Sign In with Google popup
   const handleSignIn = async () => {
@@ -138,12 +345,16 @@ export default function App() {
       await signOut(auth);
       setUser(null);
       setEntries([]);
+      setDailyChecklists({});
+      setMilestones([]);
       setCurrentEditingEntry(null);
       setSelectedFilterDate(null);
-      setActiveTab("editor");
-      // Clear any guest leftover cache so fresh login page is shown
+      setActiveTab("today");
       localStorage.removeItem("warmth_guest_entries");
-      showToast("Signed out. Your entries remain safely protected in Firestore.");
+      localStorage.removeItem("warmth_guest_habits");
+      localStorage.removeItem("warmth_guest_checklists");
+      localStorage.removeItem("warmth_guest_milestones");
+      showToast("Signed out. Your entries and habits remain safely protected in Firestore.");
     } catch (err: any) {
       showToast(`Sign out error: ${err.message}`, "error");
     }
@@ -173,14 +384,14 @@ export default function App() {
       updatedAt: new Date().toISOString(),
     };
 
-    if (user) {
-      // Optimistic update for instant UI feedback
-      const updated = [newEntry, ...entries.filter((e) => e.id !== newEntry.id)];
-      setEntries(updated);
+    const updated = [newEntry, ...entries.filter((e) => e.id !== newEntry.id)];
+    setEntries(updated);
 
+    if (user) {
       try {
         const savedId = await saveJournalEntry(user.uid, newEntry);
         showToast("Reflection saved to your private Cloud Firestore!");
+        evaluateAndAwardMilestones(dailyChecklists, updated);
         return savedId;
       } catch (err: any) {
         console.error("Firestore save error:", err);
@@ -188,17 +399,14 @@ export default function App() {
         showToast("Saved locally (Firestore sync pending).");
       }
     } else {
-      // Guest local storage
-      const updated = [newEntry, ...entries.filter((e) => e.id !== newEntry.id)];
-      setEntries(updated);
       localStorage.setItem("warmth_guest_entries", JSON.stringify(updated));
+      evaluateAndAwardMilestones(dailyChecklists, updated);
       showToast("Saved to local session. Sign in to sync across devices!");
     }
   };
 
   // Delete Entry
   const handleDeleteEntry = async (entryId: string) => {
-    // Instant optimistic UI update
     const updated = entries.filter((e) => e.id !== entryId);
     setEntries(updated);
     localStorage.setItem("warmth_guest_entries", JSON.stringify(updated));
@@ -237,19 +445,107 @@ export default function App() {
     }
   };
 
+  // Update Daily Checklist (Habits & Priority Tasks - US-2, US-3, US-4)
+  const handleUpdateDailyChecklist = async (checklistData: DailyChecklist) => {
+    const updatedChecklists = {
+      ...dailyChecklists,
+      [checklistData.date]: checklistData,
+    };
+    setDailyChecklists(updatedChecklists);
+
+    if (user) {
+      try {
+        await saveDailyChecklist(user.uid, checklistData);
+      } catch (err) {
+        console.error("Failed to save checklist to Firestore:", err);
+        localStorage.setItem("warmth_guest_checklists", JSON.stringify(updatedChecklists));
+      }
+    } else {
+      localStorage.setItem("warmth_guest_checklists", JSON.stringify(updatedChecklists));
+    }
+
+    evaluateAndAwardMilestones(updatedChecklists, entries);
+  };
+
+  // Save Habit Template (US-1)
+  const handleSaveHabitTemplate = async (template: Partial<HabitTemplate> & { title: string }) => {
+    const templateId = template.id || "habit_" + Date.now();
+    const fullTemplate: HabitTemplate = {
+      id: templateId,
+      userId: user ? user.uid : "guest_user",
+      title: template.title,
+      category: template.category || "mind",
+      icon: template.icon || "Sun",
+      isActive: template.isActive !== undefined ? template.isActive : true,
+      order: template.order !== undefined ? template.order : habitTemplates.length,
+      createdAt: template.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const updated = [
+      ...habitTemplates.filter((t) => t.id !== templateId),
+      fullTemplate,
+    ].sort((a, b) => a.order - b.order);
+
+    setHabitTemplates(updated);
+
+    if (user) {
+      try {
+        await saveHabitTemplate(user.uid, fullTemplate);
+        showToast("Habit configuration updated!");
+      } catch (err) {
+        console.error("Failed to save habit template:", err);
+      }
+    } else {
+      localStorage.setItem("warmth_guest_habits", JSON.stringify(updated));
+      showToast("Habit configuration saved locally!");
+    }
+  };
+
+  // Delete Habit Template (US-1)
+  const handleDeleteHabitTemplate = async (templateId: string) => {
+    const updated = habitTemplates.filter((t) => t.id !== templateId);
+    setHabitTemplates(updated);
+
+    if (user) {
+      try {
+        await deleteHabitTemplate(user.uid, templateId);
+        showToast("Habit removed.");
+      } catch (err) {
+        console.error("Failed to delete habit template:", err);
+      }
+    } else {
+      localStorage.setItem("warmth_guest_habits", JSON.stringify(updated));
+      showToast("Habit removed locally.");
+    }
+  };
+
+  // Reset Habits to Defaults (US-1)
+  const handleResetHabitDefaults = async () => {
+    setHabitTemplates(DEFAULT_HABIT_TEMPLATES);
+    if (user) {
+      for (const t of DEFAULT_HABIT_TEMPLATES) {
+        await saveHabitTemplate(user.uid, t);
+      }
+    } else {
+      localStorage.setItem("warmth_guest_habits", JSON.stringify(DEFAULT_HABIT_TEMPLATES));
+    }
+    showToast("Habits reset to 6 mindful presets.");
+  };
+
   // Start a fresh new entry
   const handleNewEntry = () => {
     setCurrentEditingEntry(null);
-    setActiveTab("editor");
+    setActiveTab("today");
   };
 
   // Open existing entry in editor
   const handleSelectEntry = (entry: JournalEntry) => {
     setCurrentEditingEntry(entry);
-    setActiveTab("editor");
+    setActiveTab("today");
   };
 
-  // Triggered from Calendar: Write for a specific date
+  // Triggered from Calendar / Memories: Write for a specific date
   const handleWriteForDate = (dateString: string) => {
     const freshEntryForDate: JournalEntry = {
       id: "entry_" + Date.now(),
@@ -269,38 +565,7 @@ export default function App() {
       updatedAt: new Date().toISOString(),
     };
     setCurrentEditingEntry(freshEntryForDate);
-    setActiveTab("editor");
-  };
-
-  // Triggered from Calendar: Filter Archive for specific date
-  const handleViewDateInHistory = (dateString: string) => {
-    setSelectedFilterDate(dateString);
-    setActiveTab("history");
-  };
-
-  // Triggered from Sparks Tab: Use a prompt in the editor
-  const handleUsePrompt = (prompt: string, type: ReflectionType) => {
-    const todayStr = new Date().toISOString().split("T")[0];
-    const newEntryWithPrompt: JournalEntry = {
-      id: "entry_" + Date.now(),
-      userId: user ? user.uid : "guest_user",
-      title: "",
-      date: todayStr,
-      mood: "inspired",
-      tags: ["prompt-spark"],
-      initialThought: `${prompt}\n\n`,
-      summary: "",
-      insights: [],
-      reflectionType: type,
-      messages: [],
-      favorite: false,
-      wordCount: prompt.split(/\s+/).length,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    setCurrentEditingEntry(newEntryWithPrompt);
-    setActiveTab("editor");
-    showToast("Prompt loaded into editor!");
+    setActiveTab("today");
   };
 
   return (
@@ -309,7 +574,7 @@ export default function App() {
       <Navbar
         activeTab={activeTab}
         setActiveTab={(tab) => {
-          if (tab === "history") setSelectedFilterDate(null);
+          if (tab === "memories") setSelectedFilterDate(null);
           setActiveTab(tab);
         }}
         user={user}
@@ -320,6 +585,7 @@ export default function App() {
         serverStatus={serverStatus}
         telemetry={telemetry}
         entriesCount={entries.length}
+        onOpenHabits={() => setIsHabitManagerOpen(true)}
       />
 
       {/* Notification Toast */}
@@ -345,7 +611,7 @@ export default function App() {
       {/* Main Content Body */}
       <main className="flex-1 pb-16">
         {/* If guest and no entries yet, show warm landing hero */}
-        {!user && entries.length === 0 && activeTab === "editor" && !currentEditingEntry ? (
+        {!user && entries.length === 0 && activeTab === "today" && !currentEditingEntry ? (
           <LandingHero
             onSignIn={handleSignIn}
             onContinueAsGuest={() => {
@@ -370,7 +636,7 @@ export default function App() {
           />
         ) : (
           <>
-            {activeTab === "editor" && (
+            {activeTab === "today" && (
               <JournalEditor
                 user={user}
                 currentEntry={currentEditingEntry}
@@ -378,38 +644,60 @@ export default function App() {
                 onNewEntry={handleNewEntry}
                 onDeleteEntry={handleDeleteEntry}
                 telemetry={telemetry}
+                dailyChecklist={currentChecklist}
+                tomorrowChecklist={tomorrowChecklist}
+                habitTemplates={habitTemplates}
+                onUpdateChecklist={handleUpdateDailyChecklist}
+                onUpdateTomorrowChecklist={handleUpdateDailyChecklist}
+                onOpenHabitManager={() => setIsHabitManagerOpen(true)}
+                streakDays={streakDays}
               />
             )}
 
-            {activeTab === "history" && (
-              <HistoryArchive
+            {activeTab === "memories" && (
+              <MemoriesView
                 entries={entries}
                 onSelectEntry={handleSelectEntry}
+                onWriteForDate={handleWriteForDate}
                 onDeleteEntry={handleDeleteEntry}
                 onToggleFavorite={handleToggleFavorite}
-                selectedFilterDate={selectedFilterDate}
-                onClearDateFilter={() => setSelectedFilterDate(null)}
                 onNewEntry={handleNewEntry}
               />
             )}
 
-            {activeTab === "calendar" && (
-              <CalendarView
+            {activeTab === "insights" && (
+              <InsightsMilestonesTab
                 entries={entries}
-                onSelectEntry={handleSelectEntry}
-                onWriteForDate={handleWriteForDate}
-                onViewDateInHistory={handleViewDateInHistory}
-                onSaveEntry={handleSaveEntry}
-                onDeleteEntry={handleDeleteEntry}
+                habitTemplates={habitTemplates}
+                dailyChecklists={dailyChecklists}
+                milestones={milestones}
+                onSelectEntryByDate={(dateStr) => handleWriteForDate(dateStr)}
+                onOpenHabitManager={() => setIsHabitManagerOpen(true)}
               />
-            )}
-
-            {activeTab === "sparks" && (
-              <PromptSparksTab onUsePrompt={handleUsePrompt} />
             )}
           </>
         )}
       </main>
+
+      {/* Global Habit Manager Modal */}
+      <HabitManagerModal
+        isOpen={isHabitManagerOpen}
+        onClose={() => setIsHabitManagerOpen(false)}
+        templates={habitTemplates}
+        onSaveTemplate={handleSaveHabitTemplate}
+        onDeleteTemplate={handleDeleteHabitTemplate}
+        onResetToDefaults={handleResetHabitDefaults}
+      />
+
+      {/* Milestone Celebration Modal */}
+      <MilestoneCelebrationModal
+        milestone={celebrationMilestone}
+        onClose={() => setCelebrationMilestone(null)}
+        onViewInsights={() => {
+          setCelebrationMilestone(null);
+          setActiveTab("insights");
+        }}
+      />
 
       {/* Footer */}
       <footer className="border-t border-[#E8DFC8] py-6 bg-[#FAF7F2] text-xs text-[#7E6E5F]">
@@ -429,7 +717,7 @@ export default function App() {
               <span>Cloud Firestore Hardened Security</span>
             </span>
             <span>·</span>
-            <span>Gemini AI Fallback Ladder Active</span>
+            <span>Habit & Intention Sanctuary Active</span>
           </div>
         </div>
       </footer>
