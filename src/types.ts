@@ -1,14 +1,10 @@
 export type MoodType =
-  | "peaceful"
+  | "calm"
+  | "happy"
   | "grateful"
-  | "reflective"
-  | "hopeful"
+  | "low"
   | "overwhelmed"
-  | "inspired"
-  | "content"
-  | "curious"
-  | "melancholic"
-  | "determined";
+  | (string & {});
 
 export type ReflectionType =
   | "daily_reflection"
@@ -18,7 +14,18 @@ export type ReflectionType =
   | "mindfulness"
   | "clarity_coaching";
 
-export type WisdomStream = "gita" | "stoic" | "buddhism" | "psychology";
+export type WisdomStream = "all" | "gita" | "stoic" | "buddhism" | "psychology";
+
+export type AppTheme = "light" | "dark" | "system";
+
+export interface AppSettings {
+  theme: AppTheme;
+  wisdomStream: WisdomStream;
+  enableCamera: boolean;
+  enableMicrophone: boolean;
+  autoPlayWisdomAudio: boolean;
+  dailyReminderTime?: string;
+}
 
 export interface DailyWisdomItem {
   id: string;
@@ -46,11 +53,12 @@ export interface JournalEntry {
   title: string;
   date: string; // "YYYY-MM-DD"
   mood: MoodType;
+  customFeelings?: string[];
   tags: string[];
   initialThought: string;
   summary: string;
   insights: string[];
-  // reflectionType: ReflectionType;
+  reflectionType?: ReflectionType;
   messages: ChatMessage[];
   favorite?: boolean;
   wordCount: number;
@@ -148,6 +156,8 @@ export interface UserMilestone {
   description: string;
   icon: string;
   unlockedAt: string;
+  isCustom?: boolean;
+  category?: string;
   postcardData?: PostcardData;
 }
 

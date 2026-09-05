@@ -25,6 +25,7 @@ interface NavbarProps {
   telemetry: ModelTelemetry | null;
   entriesCount: number;
   onOpenHabits?: () => void;
+  onOpenSettings?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -39,9 +40,10 @@ export const Navbar: React.FC<NavbarProps> = ({
   telemetry,
   entriesCount,
   onOpenHabits,
+  onOpenSettings,
 }) => {
   return (
-    <header className="sticky top-0 z-40 bg-[#FAF7F2]/90 backdrop-blur-md border-b border-[#E8DFC8]">
+    <header className="sticky top-0 z-40 bg-[#FAF7F2]/90 dark:bg-[#181412]/90 backdrop-blur-md border-b border-[#E8DFC8] dark:border-[#332A23] transition-colors">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo & Brand */}
@@ -54,27 +56,27 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
             <div>
               <div className="flex items-center space-x-2">
-                <span className="font-display font-semibold text-lg text-[#2C241E] tracking-tight">
+                <span className="font-display font-semibold text-lg text-[#2C241E] dark:text-[#F5EBE1] tracking-tight">
                   Warmth
                 </span>
-                <span className="text-[10px] uppercase font-bold tracking-widest px-2 py-0.5 rounded-full bg-[#F5EBE1] text-[#935116] border border-[#E8DFC8]">
+                <span className="text-[10px] uppercase font-bold tracking-widest px-2 py-0.5 rounded-full bg-[#F5EBE1] dark:bg-[#2C241E] text-[#935116] dark:text-[#F39C12] border border-[#E8DFC8] dark:border-[#3E342B]">
                   AI Journal
                 </span>
               </div>
-              <p className="text-[11px] text-[#7E6E5F] hidden sm:block">
+              <p className="text-[11px] text-[#7E6E5F] dark:text-[#A89887] hidden sm:block">
                 A gentle lens for your thoughts & routines
               </p>
             </div>
           </div>
 
           {/* Nav Tabs (Streamlined 3 Core Spaces) */}
-          <nav className="hidden md:flex items-center space-x-1.5 bg-[#F4EDE2] p-1.5 rounded-2xl border border-[#E5DAC6]">
+          <nav className="hidden md:flex items-center space-x-1.5 bg-[#F4EDE2] dark:bg-[#241E1A] p-1.5 rounded-2xl border border-[#E5DAC6] dark:border-[#3E342B]">
             <button
               onClick={() => setActiveTab("today")}
               className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${
                 activeTab === "today"
-                  ? "bg-white text-[#2C241E] shadow-xs scale-102"
-                  : "text-[#7E6E5F] hover:text-[#2C241E] hover:bg-[#FAF7F2]/60"
+                  ? "bg-white dark:bg-[#332A23] text-[#2C241E] dark:text-[#F5EBE1] shadow-xs scale-102"
+                  : "text-[#7E6E5F] dark:text-[#A89887] hover:text-[#2C241E] dark:hover:text-[#F5EBE1] hover:bg-[#FAF7F2]/60 dark:hover:bg-[#2C241E]/60"
               }`}
             >
               <Sparkles className="w-3.5 h-3.5 text-[#E67E22]" />
@@ -85,14 +87,14 @@ export const Navbar: React.FC<NavbarProps> = ({
               onClick={() => setActiveTab("memories")}
               className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${
                 activeTab === "memories"
-                  ? "bg-white text-[#2C241E] shadow-xs scale-102"
-                  : "text-[#7E6E5F] hover:text-[#2C241E] hover:bg-[#FAF7F2]/60"
+                  ? "bg-white dark:bg-[#332A23] text-[#2C241E] dark:text-[#F5EBE1] shadow-xs scale-102"
+                  : "text-[#7E6E5F] dark:text-[#A89887] hover:text-[#2C241E] dark:hover:text-[#F5EBE1] hover:bg-[#FAF7F2]/60 dark:hover:bg-[#2C241E]/60"
               }`}
             >
               <BookOpen className="w-3.5 h-3.5 text-[#BA4A00]" />
               <span>Memories</span>
               {entriesCount > 0 && (
-                <span className="text-[10px] bg-[#F5EBE1] text-[#935116] px-1.5 py-0.2 rounded-full font-bold">
+                <span className="text-[10px] bg-[#F5EBE1] dark:bg-[#3B2C1E] text-[#935116] dark:text-[#F39C12] px-1.5 py-0.2 rounded-full font-bold">
                   {entriesCount}
                 </span>
               )}
@@ -102,8 +104,8 @@ export const Navbar: React.FC<NavbarProps> = ({
               onClick={() => setActiveTab("insights")}
               className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${
                 activeTab === "insights"
-                  ? "bg-white text-[#2C241E] shadow-xs scale-102"
-                  : "text-[#7E6E5F] hover:text-[#2C241E] hover:bg-[#FAF7F2]/60"
+                  ? "bg-white dark:bg-[#332A23] text-[#2C241E] dark:text-[#F5EBE1] shadow-xs scale-102"
+                  : "text-[#7E6E5F] dark:text-[#A89887] hover:text-[#2C241E] dark:hover:text-[#F5EBE1] hover:bg-[#FAF7F2]/60 dark:hover:bg-[#2C241E]/60"
               }`}
             >
               <Award className="w-3.5 h-3.5 text-[#BA4A00]" />
@@ -113,21 +115,21 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* Right Status & Quick Actions */}
           <div className="flex items-center space-x-2 sm:space-x-3">
-            {/* Quick Habits Customizer Button */}
-            {onOpenHabits && (
+            {/* Settings Modal Button */}
+            {onOpenSettings && (
               <button
-                onClick={onOpenHabits}
-                className="hidden sm:flex items-center space-x-1 px-3 py-1.5 rounded-xl bg-white border border-[#E8DFC8] text-xs font-semibold text-[#4A3B32] hover:bg-[#F5EBE1] transition-all shadow-2xs cursor-pointer"
-                title="Configure daily habit routines"
+                onClick={onOpenSettings}
+                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-[#241E1A] border border-[#E8DFC8] dark:border-[#3E342B] text-xs font-semibold text-[#4A3B32] dark:text-[#E8DFC8] hover:bg-[#F5EBE1] dark:hover:bg-[#332A23] transition-all shadow-2xs cursor-pointer"
+                title="Open Sanctuary Settings"
               >
-                <Settings className="w-3.5 h-3.5 text-[#BA4A00]" />
-                <span>Habits</span>
+                <Settings className="w-3.5 h-3.5 text-[#BA4A00] dark:text-[#F39C12]" />
+                <span className="hidden sm:inline">Settings</span>
               </button>
             )}
 
             {/* Cloud Sync Status Pill */}
             <div
-              className="hidden lg:flex items-center space-x-1.5 px-3 py-1 rounded-full bg-[#F5EBE1] border border-[#E8DFC8] text-[11px] text-[#4A3B32]"
+              className="hidden lg:flex items-center space-x-1.5 px-3 py-1 rounded-full bg-[#F5EBE1] dark:bg-[#241E1A] border border-[#E8DFC8] dark:border-[#3E342B] text-[11px] text-[#4A3B32] dark:text-[#A89887]"
               title={firestoreConnected ? "Syncing to Cloud Firestore" : "Connecting to database..."}
             >
               <Cloud
@@ -142,16 +144,16 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             {/* Auth Button / Profile */}
             {isAuthLoading ? (
-              <div className="px-3 py-1.5 rounded-xl bg-[#F4EDE2] text-[#7E6E5F] text-xs animate-pulse">
+              <div className="px-3 py-1.5 rounded-xl bg-[#F4EDE2] dark:bg-[#241E1A] text-[#7E6E5F] dark:text-[#A89887] text-xs animate-pulse">
                 Loading...
               </div>
             ) : user ? (
-              <div className="flex items-center space-x-2 pl-2 border-l border-[#E8DFC8]">
+              <div className="flex items-center space-x-2 pl-2 border-l border-[#E8DFC8] dark:border-[#3E342B]">
                 {user.photoURL ? (
                   <img
                     src={user.photoURL}
                     alt={user.displayName || "User"}
-                    className="w-8 h-8 rounded-full border-2 border-[#E8DFC8] object-cover"
+                    className="w-8 h-8 rounded-full border-2 border-[#E8DFC8] dark:border-[#3E342B] object-cover"
                     referrerPolicy="no-referrer"
                   />
                 ) : (
@@ -160,18 +162,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </div>
                 )}
                 <div className="hidden xl:block text-left">
-                  <div className="text-xs font-semibold text-[#2C241E] leading-tight truncate max-w-[110px]">
+                  <div className="text-xs font-semibold text-[#2C241E] dark:text-[#F5EBE1] leading-tight truncate max-w-[110px]">
                     {user.displayName || user.email?.split("@")[0]}
-                  </div>
-                  <div className="text-[10px] text-emerald-700 flex items-center">
-                    <CheckCircle2 className="w-2.5 h-2.5 mr-0.5 inline" />
-                    Cloud Active
                   </div>
                 </div>
                 <button
                   onClick={onSignOut}
                   title="Sign Out"
-                  className="p-1.5 text-[#7E6E5F] hover:text-[#922B21] hover:bg-[#FADBD8]/40 rounded-lg transition-colors cursor-pointer"
+                  className="p-1.5 text-[#7E6E5F] dark:text-[#A89887] hover:text-[#922B21] hover:bg-[#FADBD8]/40 dark:hover:bg-[#922B21]/20 rounded-lg transition-colors cursor-pointer"
                 >
                   <LogOut className="w-4 h-4" />
                 </button>
@@ -179,7 +177,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             ) : (
               <button
                 onClick={onSignIn}
-                className="px-3.5 py-1.5 bg-[#2C241E] hover:bg-[#4A3B32] text-[#FAF7F2] text-xs font-semibold rounded-xl shadow-xs flex items-center space-x-1.5 transition-all hover:scale-102 cursor-pointer"
+                className="px-3.5 py-1.5 bg-[#2C241E] dark:bg-[#BA4A00] hover:bg-[#4A3B32] dark:hover:bg-[#935116] text-[#FAF7F2] text-xs font-semibold rounded-xl shadow-xs flex items-center space-x-1.5 transition-all hover:scale-102 cursor-pointer"
               >
                 <LogIn className="w-3.5 h-3.5 text-[#F39C12]" />
                 <span>Google Sign In</span>
@@ -189,13 +187,13 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
 
         {/* Mobile Navigation Bar */}
-        <div className="md:hidden flex items-center justify-around py-2 border-t border-[#E8DFC8] text-xs">
+        <div className="md:hidden flex items-center justify-around py-2 border-t border-[#E8DFC8] dark:border-[#3E342B] text-xs">
           <button
             onClick={() => setActiveTab("today")}
             className={`flex flex-col items-center py-1 px-3 rounded-lg transition-colors ${
               activeTab === "today"
                 ? "text-[#E67E22] font-semibold"
-                : "text-[#7E6E5F]"
+                : "text-[#7E6E5F] dark:text-[#A89887]"
             }`}
           >
             <Sparkles className="w-4 h-4 mb-0.5" />
@@ -206,7 +204,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             className={`flex flex-col items-center py-1 px-3 rounded-lg transition-colors ${
               activeTab === "memories"
                 ? "text-[#E67E22] font-semibold"
-                : "text-[#7E6E5F]"
+                : "text-[#7E6E5F] dark:text-[#A89887]"
             }`}
           >
             <BookOpen className="w-4 h-4 mb-0.5" />
@@ -217,12 +215,21 @@ export const Navbar: React.FC<NavbarProps> = ({
             className={`flex flex-col items-center py-1 px-3 rounded-lg transition-colors ${
               activeTab === "insights"
                 ? "text-[#E67E22] font-semibold"
-                : "text-[#7E6E5F]"
+                : "text-[#7E6E5F] dark:text-[#A89887]"
             }`}
           >
             <Award className="w-4 h-4 mb-0.5" />
             <span>Insights</span>
           </button>
+          {onOpenSettings && (
+            <button
+              onClick={onOpenSettings}
+              className="flex flex-col items-center py-1 px-3 rounded-lg transition-colors text-[#7E6E5F] dark:text-[#A89887]"
+            >
+              <Settings className="w-4 h-4 mb-0.5" />
+              <span>Settings</span>
+            </button>
+          )}
         </div>
       </div>
     </header>

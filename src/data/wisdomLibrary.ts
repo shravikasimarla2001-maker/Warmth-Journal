@@ -430,11 +430,14 @@ export function playMeditationChime(): void {
  */
 export function getDailyWisdom(
   mood: MoodType = "peaceful",
-  stream: WisdomStream = "gita",
+  stream: WisdomStream = "all",
   cycleOffset = 0
 ): DailyWisdomItem {
   // 1. Filter by tradition stream
-  let candidates = WISDOM_LIBRARY.filter((item) => item.stream === stream);
+  let candidates =
+    stream === "all"
+      ? WISDOM_LIBRARY
+      : WISDOM_LIBRARY.filter((item) => item.stream === stream);
 
   if (candidates.length === 0) {
     candidates = WISDOM_LIBRARY;

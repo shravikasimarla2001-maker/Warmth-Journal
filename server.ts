@@ -188,7 +188,7 @@ app.post("/api/reflect", async (req: Request, res: Response) => {
       message = "",
       entryContext = "",
       reflectionType = "daily_reflection",
-      mood = "peaceful",
+      mood = "calm",
     } = req.body;
 
     if (!message && !entryContext) {
@@ -285,7 +285,7 @@ app.post("/api/summarize-entry", async (req: Request, res: Response) => {
   "title": "A poetic, evocative title (max 6 words)",
   "summary": "A compassionate, insightful summary synthesizing the core themes and emotional arc (2-3 sentences)",
   "insights": ["3 to 4 distinct, meaningful bullet takeaways or breakthroughs"],
-  "detectedMood": "one of: peaceful, grateful, reflective, hopeful, overwhelmed, inspired, content, curious, melancholic, determined",
+  "detectedMood": "one of: calm, grateful, reflective, hopeful, overwhelmed, inspired, content, curious, melancholic, determined",
   "tags": ["3 to 5 relevant lowercase thematic tags like mindfulness, career, gratitude, relationships, creativity"]
 }
 

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   CheckCircle2,
   Circle,
@@ -50,8 +50,17 @@ export const DailyChecklistDock: React.FC<DailyChecklistDockProps> = ({
   const [isAddingTodayTask, setIsAddingTodayTask] = useState(false);
 
   // Compute date strings
-  const todayDateStr = new Date().toISOString().split("T")[0];
+  const todayDateStr = useMemo(() => new Date().toISOString().split("T")[0], []);
   const isToday = currentDate === todayDateStr;
+
+  const formattedDateLabel = useMemo(() => {
+    try {
+      const d = new Date(currentDate + "T12:00:00Z");
+      return d.toLocaleDateString("en-US", { month: "short", day: "numeric", weekday: "short" });
+    } catch {
+      return currentDate;
+    }
+  }, [currentDate]);
 
   const tomorrowDateObj = new Date(currentDate + "T12:00:00Z");
   tomorrowDateObj.setDate(tomorrowDateObj.getDate() + 1);
@@ -272,14 +281,21 @@ export const DailyChecklistDock: React.FC<DailyChecklistDockProps> = ({
               <CheckCircle2 className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="font-display font-semibold text-sm text-[#2C241E] flex items-center space-x-1.5">
-                <span>Daily Rituals & Focus</span>
-                {isToday && (
-                  <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.2 rounded bg-amber-100 text-amber-900">
+              <div className="flex items-center space-x-1.5 flex-wrap">
+                <h3 className="font-display font-semibold text-sm text-[#2C241E]">
+                  Daily Rituals & Focus
+                </h3>
+                {isToday ? (
+                  <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-200">
                     Today
                   </span>
+                ) : (
+                  <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded bg-amber-100 text-amber-900 border border-amber-200 flex items-center space-x-1">
+                    <Calendar className="w-2.5 h-2.5" />
+                    <span>{formattedDateLabel}</span>
+                  </span>
                 )}
-              </h3>
+              </div>
               <p className="text-[11px] text-[#7E6E5F]">
                 {totalCompleted} of {totalItems} items completed · {completionPercentage}%
               </p>
@@ -395,12 +411,12 @@ export const DailyChecklistDock: React.FC<DailyChecklistDockProps> = ({
         )}
       </div>
 
-      {/* Section 2: Today's Priority Focus Tasks (3–4 Focus Tasks) */}
+      {/* Section 2: Today's / Selected Date's Priority Focus Tasks */}
       <div className="space-y-2 pt-2 border-t border-[#E8DFC8]">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-1.5">
             <span className="text-[11px] font-bold tracking-wider text-[#935116] uppercase">
-              Today's Key Focus ({priorityTasksList.filter((t) => t.completed).length}/{priorityTasksList.length})
+              {isToday ? "Today's Key Focus" : `${formattedDateLabel} Focus`} ({priorityTasksList.filter((t) => t.completed).length}/{priorityTasksList.length})
             </span>
             <span className="text-[10px] text-[#7E6E5F]" title="Target 3-4 main tasks for mindful focus">
               (max 4)
@@ -537,10 +553,10 @@ export const DailyChecklistDock: React.FC<DailyChecklistDockProps> = ({
             <CalendarPlus className="w-4 h-4 text-[#BA4A00]" />
             <div>
               <span className="text-xs font-semibold text-[#2C241E]">
-                Plan Tomorrow's Focus ({tomorrowTasksList.length})
+                {isToday ? "Plan Tomorrow's Focus" : "Plan Next Day's Focus"} ({tomorrowTasksList.length})
               </span>
               <p className="text-[10px] text-[#7E6E5F]">
-                Clear your mind before sleep by setting 2-4 tomorrow targets
+                {isToday ? "Clear your mind before sleep by setting 2-4 tomorrow targets" : `Preview or plan ahead for the following day (${tomorrowDateStr})`}
               </p>
             </div>
           </div>

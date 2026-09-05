@@ -1,10 +1,14 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   Sparkles,
   Send,
   Save,
   CheckCircle2,
+  Check,
+  AlertTriangle,
   Calendar,
+  Smile,
+  Plus,
   Tag,
   Feather,
   BookOpen,
@@ -13,6 +17,8 @@ import {
   Lightbulb,
   Heart,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Layers,
   Award,
   Clock,
@@ -58,8 +64,11 @@ interface JournalEditorProps {
   onDeleteEntry?: (entryId: string) => Promise<void> | void;
   telemetry: ModelTelemetry | null;
   onSelectDateInCalendar?: (date: string) => void;
+  entries?: JournalEntry[];
+  onChangeDate?: (date: string) => void;
   dailyChecklist?: DailyChecklist | null;
   tomorrowChecklist?: DailyChecklist | null;
+  dailyChecklists?: Record<string, DailyChecklist>;
   habitTemplates?: HabitTemplate[];
   onUpdateChecklist?: (checklist: DailyChecklist) => Promise<void>;
   onUpdateTomorrowChecklist?: (checklist: DailyChecklist) => Promise<void>;
@@ -67,19 +76,18 @@ interface JournalEditorProps {
   streakDays?: number;
   bookmarkedWisdomIds?: string[];
   onToggleWisdomBookmark?: (item: DailyWisdomItem) => void;
+  defaultWisdomStream?: WisdomStream;
+  enableCamera?: boolean;
+  enableMicrophone?: boolean;
+  onSaveEnabledChange?: (canSave: boolean) => void;
 }
 
-const MOODS: { type: MoodType; label: string; icon: string; color: string }[] = [
-  { type: "peaceful", label: "Peaceful", icon: "🌿", color: "bg-emerald-50 text-emerald-800 border-emerald-200" },
-  { type: "grateful", label: "Grateful", icon: "🙏", color: "bg-amber-50 text-amber-900 border-amber-200" },
-  { type: "reflective", label: "Reflective", icon: "🕯️", color: "bg-orange-50 text-orange-900 border-orange-200" },
-  { type: "hopeful", label: "Hopeful", icon: "🌅", color: "bg-yellow-50 text-yellow-900 border-yellow-200" },
-  { type: "inspired", label: "Inspired", icon: "✨", color: "bg-amber-50 text-amber-900 border-amber-300" },
-  { type: "content", label: "Content", icon: "☕", color: "bg-stone-50 text-stone-900 border-stone-200" },
-  { type: "curious", label: "Curious", icon: "🔍", color: "bg-blue-50 text-blue-900 border-blue-200" },
-  { type: "overwhelmed", label: "Overwhelmed", icon: "🌊", color: "bg-cyan-50 text-cyan-900 border-cyan-200" },
-  { type: "melancholic", label: "Melancholic", icon: "🌧️", color: "bg-indigo-50 text-indigo-900 border-indigo-200" },
-  { type: "determined", label: "Determined", icon: "🔥", color: "bg-red-50 text-red-900 border-red-200" },
+const DEFAULT_FEELINGS: { type: MoodType; label: string; icon: string; color: string }[] = [
+  { type: "calm", label: "Calm", icon: "🌿", color: "bg-emerald-50 text-emerald-800 border-emerald-200" },
+  { type: "happy", label: "Happy", icon: "😊", color: "bg-amber-50 text-amber-900 border-amber-200" },
+  { type: "grateful", label: "Grateful", icon: "🙏", color: "bg-yellow-50 text-yellow-900 border-yellow-200" },
+  { type: "low", label: "Low", icon: "🌧️", color: "bg-blue-50 text-blue-900 border-blue-200" },
+  { type: "overwhelmed", label: "Overwhelmed", icon: "⚡", color: "bg-orange-50 text-orange-900 border-orange-200" },
 ];
 
 const REFLECTION_TYPES: { type: ReflectionType; label: string; desc: string }[] = [
@@ -100,6 +108,9 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
   telemetry,
   dailyChecklist,
   tomorrowChecklist,
+  dailyChecklists = {},
+  entries = [],
+  onChangeDate,
   habitTemplates = [],
   onUpdateChecklist,
   onUpdateTomorrowChecklist,
@@ -107,6 +118,10 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
   streakDays = 0,
   bookmarkedWisdomIds = [],
   onToggleWisdomBookmark,
+  defaultWisdomStream = "all",
+  enableCamera = true,
+  enableMicrophone = true,
+  onSaveEnabledChange,
 }) => {
   // Today's date YYYY-MM-DD
   const getTodayString = () => new Date().toISOString().split("T")[0];
@@ -117,12 +132,43 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
   const [date, setDate] = useState<string>(
     currentEntry?.date || getTodayString()
   );
+
+  // Active checklist dynamically derived strictly from current selected editor date
+  const activeChecklist = useMemo(() => {
+    if (dailyChecklists && dailyChecklists[date]) {
+      return dailyChecklists[date];
+    }
+    return null;
+  }, [dailyChecklists, date]);
+
+  // Tomorrow checklist dynamically derived strictly from day after current selected date
+  const activeTomorrowChecklist = useMemo(() => {
+    const nextDayObj = new Date(date + "T12:00:00Z");
+    nextDayObj.setDate(nextDayObj.getDate() + 1);
+    const nextDayStr = nextDayObj.toISOString().split("T")[0];
+    if (dailyChecklists && dailyChecklists[nextDayStr]) {
+      return dailyChecklists[nextDayStr];
+    }
+    return null;
+  }, [dailyChecklists, date]);
+
+  // Date navigation helpers for top action bar
+  const todayStr = useMemo(() => new Date().toISOString().split("T")[0], []);
+  const isDateToday = date === todayStr;
+
+  // Textarea ref for auto-expand: starts compact (min-h 110px), grows up to 290px, then adds vertical scroll
+  const thoughtTextareaRef = useRef<HTMLTextAreaElement>(null);
+
   const [title, setTitle] = useState<string>(
     currentEntry?.title || ""
   );
   const [mood, setMood] = useState<MoodType>(
-    currentEntry?.mood || "peaceful"
+    currentEntry?.mood || "calm"
   );
+  const [customFeelings, setCustomFeelings] = useState<string[]>(
+    currentEntry?.customFeelings || []
+  );
+  const [feelingInput, setFeelingInput] = useState<string>("");
   const [reflectionType, setReflectionType] = useState<ReflectionType>(
     currentEntry?.reflectionType ||
      "daily_reflection"
@@ -130,6 +176,15 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
   const [initialThought, setInitialThought] = useState<string>(
     currentEntry?.initialThought || ""
   );
+
+  useEffect(() => {
+    if (thoughtTextareaRef.current) {
+      thoughtTextareaRef.current.style.height = "auto";
+      const scrollH = thoughtTextareaRef.current.scrollHeight;
+      const clampedHeight = Math.min(Math.max(scrollH, 110), 290);
+      thoughtTextareaRef.current.style.height = `${clampedHeight}px`;
+    }
+  }, [initialThought]);
   const [messages, setMessages] = useState<ChatMessage[]>(
     currentEntry?.messages || []
   );
@@ -142,7 +197,6 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
   const [tags, setTags] = useState<string[]>(
     currentEntry?.tags || ["reflection"]
   );
-  const [tagInput, setTagInput] = useState("");
   const [favorite, setFavorite] = useState<boolean>(
     currentEntry?.favorite || false
   );
@@ -152,6 +206,215 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
   const [photoCaption, setPhotoCaption] = useState<string>(
     currentEntry?.photoCaption || ""
   );
+  // Real creation timestamp for this entry (irrespective of calendar date)
+  const [createdAtState, setCreatedAtState] = useState<string>(
+    currentEntry?.createdAt || new Date().toISOString()
+  );
+
+  // Exactly ONE entry per day: check whether an entry exists for the currently selected calendar date
+  const existingSavedEntry = useMemo(() => {
+    return entries.find((e) => e.date === date);
+  }, [entries, date]);
+
+  const isExistingEntry = !!existingSavedEntry;
+
+  // Has user added any core content to an entry
+  const hasAddedContent = useMemo(() => {
+    return (
+      title.trim().length > 0 ||
+      initialThought.trim().length > 0 ||
+      messages.length > 0 ||
+      !!photoUrl ||
+      photoCaption.trim().length > 0 ||
+      summary.trim().length > 0 ||
+      insights.length > 0
+    );
+  }, [title, initialThought, messages, photoUrl, photoCaption, summary, insights]);
+
+  // Check whether user has unsaved edits/additions on this reflection
+  const hasUnsavedChanges = useMemo(() => {
+    if (isExistingEntry && existingSavedEntry) {
+      const titleChanged = title.trim() !== (existingSavedEntry.title || "").trim();
+      const thoughtChanged = initialThought.trim() !== (existingSavedEntry.initialThought || "").trim();
+      const moodChanged = mood !== existingSavedEntry.mood;
+      const feelingsChanged =
+        JSON.stringify(customFeelings) !==
+        JSON.stringify(existingSavedEntry.customFeelings || []);
+      const typeChanged = reflectionType !== (existingSavedEntry.reflectionType || "daily_reflection");
+      const summaryChanged = summary.trim() !== (existingSavedEntry.summary || "").trim();
+      const photoChanged = (photoUrl || undefined) !== (existingSavedEntry.photoUrl || undefined);
+      const photoCaptionChanged = photoCaption.trim() !== (existingSavedEntry.photoCaption || "").trim();
+      const favChanged = favorite !== (existingSavedEntry.favorite || false);
+      const insightsChanged = JSON.stringify(insights) !== JSON.stringify(existingSavedEntry.insights || []);
+      const messagesChanged = messages.length !== (existingSavedEntry.messages?.length || 0);
+
+      return (
+        titleChanged ||
+        thoughtChanged ||
+        moodChanged ||
+        feelingsChanged ||
+        typeChanged ||
+        summaryChanged ||
+        photoChanged ||
+        photoCaptionChanged ||
+        favChanged ||
+        insightsChanged ||
+        messagesChanged
+      );
+    } else {
+      // For a day without an existing entry: consider modified ONLY if actual inputs have been added
+      return hasAddedContent;
+    }
+  }, [
+    isExistingEntry,
+    existingSavedEntry,
+    title,
+    initialThought,
+    mood,
+    customFeelings,
+    reflectionType,
+    summary,
+    photoUrl,
+    photoCaption,
+    favorite,
+    insights,
+    messages,
+    hasAddedContent,
+  ]);
+
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<string | null>(null);
+
+  // Save is enabled ONLY if user has added anything / there are unsaved changes
+  const isSaveDisabled = isSaving || (!isExistingEntry ? !hasAddedContent : !hasUnsavedChanges);
+
+  // Warn user about leaving ONLY if save entry is enabled and there are unsaved inputs
+  const shouldWarnOnLeave = !isSaveDisabled && hasUnsavedChanges;
+
+  useEffect(() => {
+    if (onSaveEnabledChange) {
+      onSaveEnabledChange(shouldWarnOnLeave);
+    }
+  }, [shouldWarnOnLeave, onSaveEnabledChange]);
+
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (shouldWarnOnLeave) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [shouldWarnOnLeave]);
+
+  // Unsaved changes warning state
+  const [isUnsavedWarningModalOpen, setIsUnsavedWarningModalOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState<{
+    type: "date_change";
+    targetDate?: string;
+  } | null>(null);
+
+  const executeDateChange = (targetDate: string) => {
+    setDate(targetDate);
+    if (onChangeDate) {
+      onChangeDate(targetDate);
+    }
+    // Check if an entry already exists for targetDate in memories archive (strictly 1 entry per day)
+    const existing = entries.find((e) => e.date === targetDate);
+    if (existing) {
+      setEntryId(existing.id);
+      setTitle(existing.title || "");
+      setMood(existing.mood || "calm");
+      setCustomFeelings(existing.customFeelings || []);
+      setReflectionType(existing.reflectionType || "daily_reflection");
+      setInitialThought(existing.initialThought || "");
+      setMessages(existing.messages || []);
+      setSummary(existing.summary || "");
+      setInsights(existing.insights || []);
+      setTags(existing.tags || ["reflection"]);
+      setFavorite(existing.favorite || false);
+      setPhotoUrl(existing.photoUrl);
+      setPhotoCaption(existing.photoCaption || "");
+      setCreatedAtState(existing.createdAt || new Date().toISOString());
+      if (existing.wisdom) {
+        setCurrentWisdom(existing.wisdom);
+      } else {
+        setCurrentWisdom(getDailyWisdom(existing.mood || "calm", preferredStream, 0));
+      }
+    } else {
+      // Fresh new reflection entry for this date
+      setEntryId("entry_" + Date.now());
+      setTitle("");
+      setMood("calm");
+      setCustomFeelings([]);
+      setReflectionType("daily_reflection");
+      setInitialThought("");
+      setMessages([]);
+      setSummary("");
+      setInsights([]);
+      setTags(["reflection"]);
+      setFavorite(false);
+      setPhotoUrl(undefined);
+      setPhotoCaption("");
+      setCreatedAtState(new Date().toISOString());
+      setCurrentWisdom(getDailyWisdom("calm", preferredStream, 0));
+    }
+  };
+
+  const handleDateChange = (targetDate: string) => {
+    if (targetDate === date) return;
+    if (shouldWarnOnLeave) {
+      setPendingAction({ type: "date_change", targetDate });
+      setIsUnsavedWarningModalOpen(true);
+    } else {
+      executeDateChange(targetDate);
+    }
+  };
+
+  const goToPreviousDate = () => {
+    const d = new Date(date + "T12:00:00Z");
+    d.setDate(d.getDate() - 1);
+    handleDateChange(d.toISOString().split("T")[0]);
+  };
+
+  const goToNextDate = () => {
+    const d = new Date(date + "T12:00:00Z");
+    d.setDate(d.getDate() + 1);
+    handleDateChange(d.toISOString().split("T")[0]);
+  };
+
+  const jumpToToday = () => {
+    handleDateChange(todayStr);
+  };
+
+  // Add a new feeling on top of the basic 4-5 discrete feelings
+  const handleAddFeeling = (e?: React.KeyboardEvent | React.MouseEvent) => {
+    if (e && "key" in e && e.key !== "Enter") return;
+    if (e) e.preventDefault();
+    const trimmed = feelingInput.trim();
+    if (!trimmed) return;
+    const capitalized = trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+    if (
+      !customFeelings.includes(capitalized) &&
+      !DEFAULT_FEELINGS.some((f) => f.label.toLowerCase() === trimmed.toLowerCase())
+    ) {
+      setCustomFeelings([...customFeelings, capitalized]);
+    }
+    setMood(capitalized);
+    setFeelingInput("");
+    triggerDynamicWisdomMatch(initialThought, capitalized, preferredStream);
+  };
+
+  // Remove a custom feeling
+  const handleRemoveCustomFeeling = (feelingToRemove: string) => {
+    const updated = customFeelings.filter((f) => f !== feelingToRemove);
+    setCustomFeelings(updated);
+    if (mood === feelingToRemove) {
+      setMood("calm");
+    }
+  };
+
   const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -160,15 +423,27 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
   // Daily Wisdom & Gita Shloka State
   const [preferredStream, setPreferredStream] = useState<WisdomStream>(() => {
     try {
-      return (localStorage.getItem("warmth_wisdom_stream") as WisdomStream) || "gita";
+      return (
+        (localStorage.getItem("warmth_wisdom_stream") as WisdomStream) ||
+        defaultWisdomStream
+      );
     } catch {
-      return "gita";
+      return defaultWisdomStream;
     }
   });
+
+  // Sync if defaultWisdomStream changes from Settings
+  useEffect(() => {
+    if (defaultWisdomStream) {
+      setPreferredStream(defaultWisdomStream);
+      setCurrentWisdom(getDailyWisdom(mood, defaultWisdomStream, wisdomCycleOffset));
+    }
+  }, [defaultWisdomStream]);
+
   const [wisdomCycleOffset, setWisdomCycleOffset] = useState(0);
   const [currentWisdom, setCurrentWisdom] = useState<DailyWisdomItem>(() => {
     if (currentEntry?.wisdom) return currentEntry.wisdom;
-    return getDailyWisdom(currentEntry?.mood || "peaceful", "gita", 0);
+    return getDailyWisdom(currentEntry?.mood || "calm", defaultWisdomStream, 0);
   });
   const [isTreasuryOpen, setIsTreasuryOpen] = useState(false);
 
@@ -325,8 +600,6 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
   const [chatInput, setChatInput] = useState("");
   const [isReflecting, setIsReflecting] = useState(false);
   const [isSummarizing, setIsSummarizing] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveStatus, setSaveStatus] = useState<string | null>(null);
 
   // Quick sparks
   const [sparks, setSparks] = useState<DailySpark[]>([
@@ -348,6 +621,13 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
   ]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+  const userHasInteractedWithChat = useRef(false);
+
+  // When routed to Today page or mounted, stay at the top of the page
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+  }, []);
 
   // Sync state when currentEntry changes
   useEffect(() => {
@@ -355,7 +635,8 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
       setEntryId(currentEntry.id);
       setDate(currentEntry.date || getTodayString());
       setTitle(currentEntry.title || "");
-      setMood(currentEntry.mood || "peaceful");
+      setMood(currentEntry.mood || "calm");
+      setCustomFeelings(currentEntry.customFeelings || []);
       setReflectionType(currentEntry.reflectionType || "daily_reflection");
       setInitialThought(currentEntry.initialThought || "");
       setMessages(currentEntry.messages || []);
@@ -365,32 +646,21 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
       setFavorite(currentEntry.favorite || false);
       setPhotoUrl(currentEntry.photoUrl);
       setPhotoCaption(currentEntry.photoCaption || "");
+      setCreatedAtState(currentEntry.createdAt || new Date().toISOString());
       if (currentEntry.wisdom) {
         setCurrentWisdom(currentEntry.wisdom);
       } else {
-        setCurrentWisdom(getDailyWisdom(currentEntry.mood || "peaceful", preferredStream, 0));
+        setCurrentWisdom(getDailyWisdom(currentEntry.mood || "calm", preferredStream, 0));
       }
-    } else {
-      setEntryId("entry_" + Date.now());
-      setDate(getTodayString());
-      setTitle("");
-      setMood("peaceful");
-      setReflectionType("daily_reflection");
-      setInitialThought("");
-      setMessages([]);
-      setSummary("");
-      setInsights([]);
-      setTags(["reflection"]);
-      setFavorite(false);
-      setPhotoUrl(undefined);
-      setPhotoCaption("");
-      setCurrentWisdom(getDailyWisdom("peaceful", preferredStream, 0));
     }
   }, [currentEntry]);
 
-  // Scroll chat messages to bottom
+  // Scroll chat messages internally ONLY when user actively reflects or chats, NEVER on initial mount or page navigation
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (!userHasInteractedWithChat.current) return;
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
   }, [messages, isReflecting]);
 
   // Word count & read time
@@ -412,6 +682,7 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
       timestamp: new Date().toISOString(),
     };
 
+    userHasInteractedWithChat.current = true;
     const updatedMessages = [...messages, userMessage];
     setMessages(updatedMessages);
     setChatInput("");
@@ -518,11 +789,16 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
         ? initialThought.trim().slice(0, 40) + "..."
         : "Reflections for " + date);
 
+    if (!title.trim() && finalTitle) {
+      setTitle(finalTitle);
+    }
+
     const payload: Partial<JournalEntry> = {
       id: entryId,
       date,
       title: finalTitle,
       mood,
+      customFeelings,
       reflectionType,
       initialThought,
       summary,
@@ -534,12 +810,13 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
       wordCount,
       photoUrl: photoUrl || undefined,
       photoCaption: photoCaption || undefined,
+      createdAt: createdAtState || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
 
     try {
       await onSaveEntry(payload);
-      setSaveStatus("Saved your entry!");
+      setSaveStatus(`Saved your journaling & AI reflections for ${date}!`);
 
       // Celebration effect
       confetti({
@@ -559,20 +836,33 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
     }
   };
 
-  // Add Tag
-  const handleAddTag = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && tagInput.trim()) {
-      e.preventDefault();
-      const cleaned = tagInput.trim().toLowerCase();
-      if (!tags.includes(cleaned)) {
-        setTags([...tags, cleaned]);
+  // Warning Modal Action Handlers
+  const handleModalSaveAndContinue = async () => {
+    try {
+      await handleSave();
+      setIsUnsavedWarningModalOpen(false);
+      const action = pendingAction;
+      setPendingAction(null);
+      if (action?.type === "date_change" && action.targetDate) {
+        executeDateChange(action.targetDate);
       }
-      setTagInput("");
+    } catch (e) {
+      console.error("Failed to save before proceeding:", e);
     }
   };
 
-  const handleRemoveTag = (tagToRemove: string) => {
-    setTags(tags.filter((t) => t !== tagToRemove));
+  const handleModalDiscardAndContinue = () => {
+    setIsUnsavedWarningModalOpen(false);
+    const action = pendingAction;
+    setPendingAction(null);
+    if (action?.type === "date_change" && action.targetDate) {
+      executeDateChange(action.targetDate);
+    }
+  };
+
+  const handleModalCancel = () => {
+    setIsUnsavedWarningModalOpen(false);
+    setPendingAction(null);
   };
 
   // Apply Prompt Spark to text
@@ -612,55 +902,62 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
           setPhotoCaption("");
         }}
       />
+
       {/* Top Action Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-white rounded-2xl p-4 border border-[#E8DFC8] shadow-xs">
         <div className="flex flex-wrap items-center gap-3">
-          {/* Date Picker */}
-          <div className="flex items-center space-x-2 bg-[#FAF7F2] px-3 py-1.5 rounded-xl border border-[#E8DFC8]">
-            <Calendar className="w-4 h-4 text-[#BA4A00]" />
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="bg-transparent text-xs font-semibold text-[#2C241E] focus:outline-none cursor-pointer"
-            />
-          </div>
+          {/* Date Picker with Previous & Next Date Arrows */}
+          <div className="flex items-center space-x-0.5 bg-[#FAF7F2] p-1 rounded-xl border border-[#E8DFC8]">
+            <button
+              type="button"
+              onClick={goToPreviousDate}
+              className="p-1.5 rounded-lg text-[#7E6E5F] hover:text-[#2C241E] hover:bg-white transition-colors cursor-pointer"
+              title="Go to previous day"
+              aria-label="Previous day"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
 
-          {/* Favorite Toggle */}
-          <button
-            onClick={() => setFavorite(!favorite)}
-            className={`p-2 rounded-xl border transition-all flex items-center space-x-1.5 text-xs font-medium ${
-              favorite
-                ? "bg-amber-50 text-amber-700 border-amber-300"
-                : "bg-[#FAF7F2] text-[#7E6E5F] border-[#E8DFC8] hover:bg-white"
-            }`}
-            title="Mark as Favorite Reflection"
-          >
-            <Star
-              className={`w-4 h-4 ${
-                favorite ? "fill-amber-400 text-amber-500" : "text-[#7E6E5F]"
-              }`}
-            />
-            <span className="hidden sm:inline">
-              {favorite ? "Favorited" : "Favorite"}
-            </span>
-          </button>
+            <div className="flex items-center space-x-1.5 px-2 py-0.5">
+              <Calendar className="w-4 h-4 text-[#BA4A00] shrink-0" />
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => handleDateChange(e.target.value)}
+                className="bg-transparent text-xs font-semibold text-[#2C241E] focus:outline-none cursor-pointer"
+              />
+            </div>
 
-          {/* Word Count Indicator */}
-          <div className="text-xs text-[#7E6E5F] flex items-center space-x-2 px-2">
-            <span>{wordCount} words</span>
-            <span>·</span>
-            <span>~{estimatedReadTime} min read</span>
+            <button
+              type="button"
+              onClick={goToNextDate}
+              className="p-1.5 rounded-lg text-[#7E6E5F] hover:text-[#2C241E] hover:bg-white transition-colors cursor-pointer"
+              title="Go to next day"
+              aria-label="Next day"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+
+            {!isDateToday && (
+              <button
+                type="button"
+                onClick={jumpToToday}
+                className="ml-1 px-2 py-0.5 rounded-lg text-[10px] font-bold bg-[#BA4A00] text-white hover:bg-[#A04000] transition-colors cursor-pointer"
+                title="Jump to today"
+              >
+                Today
+              </button>
+            )}
           </div>
         </div>
 
         {/* Action Buttons */}
         <div className="flex items-center space-x-2">
-          {currentEntry && onDeleteEntry && (
+          {isExistingEntry && onDeleteEntry && (
             <button
               onClick={() => setIsDeleteModalOpen(true)}
               className="px-3 py-2 rounded-xl text-xs font-medium text-red-600 hover:text-red-700 hover:bg-red-50 border border-transparent hover:border-red-200 transition-all flex items-center space-x-1.5 cursor-pointer"
-              title="Delete this reflection"
+              title="Delete this saved reflection"
             >
               <Trash2 className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Delete</span>
@@ -668,27 +965,107 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
           )}
 
           <button
-            onClick={onNewEntry}
-            className="px-3.5 py-2 rounded-xl text-xs font-medium text-[#7E6E5F] hover:text-[#2C241E] hover:bg-[#FAF7F2] border border-transparent hover:border-[#E8DFC8] transition-all flex items-center space-x-1.5"
-          >
-            <Feather className="w-3.5 h-3.5" />
-            <span>New Blank Entry</span>
-          </button>
-
-          <button
+            type="button"
             onClick={() => handleSave()}
-            disabled={isSaving}
-            className="px-5 py-2 bg-gradient-to-r from-[#D35400] to-[#E67E22] hover:opacity-95 text-white text-xs font-semibold rounded-xl shadow-xs flex items-center space-x-1.5 transition-all hover:scale-102"
+            disabled={isSaveDisabled}
+            className={`px-5 py-2 text-xs font-semibold rounded-xl shadow-xs flex items-center space-x-1.5 transition-all ${
+              isSaveDisabled
+                ? "bg-[#EDE5D8] text-[#A39282] cursor-not-allowed border border-[#DFD5C4]"
+                : "bg-gradient-to-r from-[#D35400] to-[#E67E22] hover:opacity-95 text-white hover:scale-102 cursor-pointer shadow-md"
+            }`}
+            title="Saves your written journaling thoughts and all AI reflections for this day"
           >
             {isSaving ? (
               <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+            ) : !hasUnsavedChanges && isExistingEntry ? (
+              <Check className="w-3.5 h-3.5 text-emerald-600" />
             ) : (
               <Save className="w-3.5 h-3.5" />
             )}
-            <span>Save Entry</span>
+            <span>
+              {isSaving
+                ? "Saving..."
+                : !hasUnsavedChanges && isExistingEntry
+                ? "Saved (No Changes)"
+                : isExistingEntry
+                ? "Save Changes to Entry"
+                : "Save Entry"}
+            </span>
           </button>
         </div>
       </div>
+
+      {/* Unsaved Changes Warning Modal */}
+      {isUnsavedWarningModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 border border-[#E8DFC8] shadow-2xl space-y-4 animate-scale-up">
+            <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600 mx-auto">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+
+            <div className="text-center space-y-2">
+              <h3 className="font-display text-lg font-bold text-[#2C241E]">
+                Save Entry First?
+              </h3>
+              <p className="text-xs text-[#7E6E5F] leading-relaxed">
+                You have unsaved edits on your reflection for{" "}
+                <strong className="text-[#2C241E]">{date}</strong>.
+                Save your entry now so your thoughts and AI reflections are saved, or choose to discard before switching dates.
+              </p>
+            </div>
+
+            {/* Quick Preview of Unsaved Content */}
+            <div className="p-3 bg-[#FAF7F2] rounded-xl border border-[#E8DFC8] text-xs text-[#5C4D42] space-y-1">
+              <div className="flex items-center justify-between text-[11px] text-[#8C7B6C] font-semibold uppercase tracking-wider">
+                <span>Unsaved Reflection</span>
+                <span>{wordCount} words</span>
+              </div>
+              <p className="line-clamp-2 italic text-[#4A3B32]">
+                "{title || initialThought || "Draft reflection in progress..."}"
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-2.5 pt-1">
+              {/* Option 1: Save and continue */}
+              <button
+                type="button"
+                disabled={isSaving}
+                onClick={handleModalSaveAndContinue}
+                className="w-full py-2.5 rounded-xl bg-gradient-to-r from-[#D35400] to-[#E67E22] hover:opacity-95 text-white text-xs font-semibold shadow-xs transition-all flex items-center justify-center space-x-2 cursor-pointer"
+              >
+                {isSaving ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Save className="w-3.5 h-3.5" />
+                )}
+                <span>Save Entry &amp; Switch Date</span>
+              </button>
+
+              <div className="grid grid-cols-2 gap-2">
+                {/* Option 2: Discard and proceed */}
+                <button
+                  type="button"
+                  disabled={isSaving}
+                  onClick={handleModalDiscardAndContinue}
+                  className="py-2.5 rounded-xl border border-red-200 bg-red-50/60 hover:bg-red-50 text-xs font-semibold text-red-700 transition-colors cursor-pointer text-center"
+                >
+                  Discard &amp; Switch Date
+                </button>
+
+                {/* Option 3: Keep editing / cancel */}
+                <button
+                  type="button"
+                  disabled={isSaving}
+                  onClick={handleModalCancel}
+                  className="py-2.5 rounded-xl border border-[#E8DFC8] bg-white hover:bg-[#FAF7F2] text-xs font-semibold text-[#4A3B32] transition-colors cursor-pointer text-center"
+                >
+                  Keep Editing
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete Confirmation Modal for Journal Editor */}
       {isDeleteModalOpen && currentEntry && (
@@ -739,7 +1116,7 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
                   try {
                     await onDeleteEntry(currentEntry.id);
                     setIsDeleteModalOpen(false);
-                    onNewEntry();
+                    executeDateChange(date);
                   } catch (err) {
                     console.error("Delete error:", err);
                   } finally {
@@ -783,6 +1160,59 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
         <div className="lg:col-span-7 space-y-6">
           {/* Paper Container */}
           <div className="bg-white rounded-2xl p-6 sm:p-8 border border-[#E8DFC8] shadow-xs space-y-5 relative">
+            {/* Entry Differentiation & Favorite Bar in Journal Card */}
+            <div className="flex flex-wrap items-center justify-between gap-2 pb-3.5 border-b border-[#E8DFC8]/70">
+              <div className="flex flex-wrap items-center gap-2">
+                {isExistingEntry ? (
+                  <span className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
+                    <BookOpen className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>Editing Saved Day</span>
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-50 text-amber-900 border border-amber-200 shadow-2xs">
+                    <Feather className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                    <span>New Day Draft</span>
+                  </span>
+                )}
+
+                <div className="text-xs text-[#7E6E5F] flex items-center space-x-1">
+                  {isExistingEntry ? (
+                    <span>
+                      Reflection for <strong className="text-[#2C241E]">{date}</strong>
+                      {createdAtState && (
+                        <span className="text-[#9C8E7E]">
+                          {" "}• Saved at {new Date(createdAtState).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        </span>
+                      )}
+                    </span>
+                  ) : (
+                    <span>
+                      Reflection for <strong className="text-[#2C241E]">{date}</strong>
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Favorite Toggle Button directly in Journal Card */}
+              <button
+                type="button"
+                onClick={() => setFavorite(!favorite)}
+                className={`px-3 py-1.5 rounded-xl border transition-all flex items-center space-x-1.5 text-xs font-medium cursor-pointer ${
+                  favorite
+                    ? "bg-amber-50 text-amber-800 border-amber-300 shadow-2xs"
+                    : "bg-[#FAF7F2] text-[#7E6E5F] border-[#E8DFC8] hover:bg-white hover:text-[#2C241E]"
+                }`}
+                title="Mark as Favorite Reflection"
+              >
+                <Star
+                  className={`w-3.5 h-3.5 ${
+                    favorite ? "fill-amber-400 text-amber-500" : "text-[#7E6E5F]"
+                  }`}
+                />
+                <span>{favorite ? "Favorited" : "Favorite"}</span>
+              </button>
+            </div>
+
             {/* Title Input */}
             <input
               type="text"
@@ -792,57 +1222,100 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
               className="w-full font-display text-2xl sm:text-3xl font-semibold text-[#2C241E] placeholder-[#B5A595] focus:outline-none border-b border-transparent focus:border-[#E8DFC8] pb-1 transition-all"
             />
 
-            {/* Mood Selector Chips */}
-            <div className="space-y-1.5">
-              <label className="text-[11px] font-bold text-[#8C7B6C] uppercase tracking-wider">
-                How is your spirit feeling?
-              </label>
-              <div className="flex flex-wrap gap-1.5">
-                {MOODS.map((m) => (
-                  <button
-                    key={m.type}
-                    type="button"
-                    onClick={() => {
-                      setMood(m.type);
-                      setWisdomCycleOffset(0);
-                      triggerDynamicWisdomMatch(initialThought, m.type, preferredStream);
-                    }}
-                    className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-all flex items-center space-x-1.5 ${
-                      mood === m.type
-                        ? `${m.color} ring-2 ring-[#BA4A00]/40 font-semibold scale-102`
-                        : "bg-[#FAF7F2] text-[#6E5D4F] border-[#E8DFC8] hover:bg-white"
-                    }`}
-                  >
-                    <span>{m.icon}</span>
-                    <span>{m.label}</span>
-                  </button>
-                ))}
+            {/* Feelings Selector: 4-5 Discrete Feelings + Custom Add Feeling */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-bold text-[#8C7B6C] uppercase tracking-wider flex items-center space-x-1.5">
+                  <Smile className="w-3.5 h-3.5 text-[#BA4A00]" />
+                  <span>How are you feeling today?</span>
+                </label>
+                {mood && (
+                  <span className="text-[11px] text-[#7E6E5F]">
+                    Active feeling: <strong className="text-[#2C241E] capitalize">{mood}</strong>
+                  </span>
+                )}
               </div>
-            </div>
 
-            {/* Reflection Mode Selector */}
-            <div className="space-y-1.5">
-              <label className="text-[11px] font-bold text-[#8C7B6C] uppercase tracking-wider">
-                Reflection Intention
-              </label>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {REFLECTION_TYPES.map((rt) => (
-                  <button
-                    key={rt.type}
-                    type="button"
-                    onClick={() => setReflectionType(rt.type)}
-                    className={`p-2 rounded-xl text-left border transition-all ${
-                      reflectionType === rt.type
-                        ? "bg-[#F5EBE1] border-[#BA4A00] text-[#2C241E] shadow-2xs font-semibold"
-                        : "bg-[#FAF7F2] border-[#E8DFC8] text-[#7E6E5F] hover:bg-white"
-                    }`}
-                  >
-                    <div className="text-xs">{rt.label}</div>
-                    <div className="text-[10px] text-[#8C7B6C] truncate">
-                      {rt.desc}
-                    </div>
-                  </button>
-                ))}
+              <div className="flex flex-wrap items-center gap-1.5">
+                {/* 4-5 Discrete Feelings */}
+                {DEFAULT_FEELINGS.map((f) => {
+                  const isSelected =
+                    mood.toLowerCase() === f.type.toLowerCase() ||
+                    mood.toLowerCase() === f.label.toLowerCase();
+                  return (
+                    <button
+                      key={f.type}
+                      type="button"
+                      onClick={() => {
+                        setMood(f.type);
+                        setWisdomCycleOffset(0);
+                        triggerDynamicWisdomMatch(initialThought, f.type, preferredStream);
+                      }}
+                      className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all flex items-center space-x-1.5 cursor-pointer ${
+                        isSelected
+                          ? `${f.color} ring-2 ring-[#BA4A00]/40 font-semibold scale-102 shadow-2xs`
+                          : "bg-[#FAF7F2] text-[#6E5D4F] border-[#E8DFC8] hover:bg-white"
+                      }`}
+                    >
+                      <span>{f.icon}</span>
+                      <span>{f.label}</span>
+                    </button>
+                  );
+                })}
+
+                {/* Custom Feelings Added by User */}
+                {customFeelings.map((cf) => {
+                  const isSelected = mood.toLowerCase() === cf.toLowerCase();
+                  return (
+                    <span
+                      key={cf}
+                      onClick={() => {
+                        setMood(cf);
+                        triggerDynamicWisdomMatch(initialThought, cf, preferredStream);
+                      }}
+                      className={`inline-flex items-center space-x-1 px-3 py-1.5 rounded-full text-xs font-medium border transition-all cursor-pointer ${
+                        isSelected
+                          ? "bg-amber-100 text-amber-900 border-amber-300 ring-2 ring-[#BA4A00]/40 font-semibold scale-102 shadow-2xs"
+                          : "bg-[#F5EBE1] text-[#935116] border-[#E8DFC8] hover:bg-white"
+                      }`}
+                    >
+                      <span>✨ {cf}</span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRemoveCustomFeeling(cf);
+                        }}
+                        className="hover:text-red-600 font-bold ml-1 text-xs cursor-pointer"
+                        title="Remove custom feeling"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  );
+                })}
+
+                {/* Add Feeling Input */}
+                <div className="flex items-center space-x-1">
+                  <input
+                    type="text"
+                    value={feelingInput}
+                    onChange={(e) => setFeelingInput(e.target.value)}
+                    onKeyDown={handleAddFeeling}
+                    placeholder="+ Add feeling (Enter)"
+                    className="px-3 py-1.5 text-xs rounded-full bg-[#FAF7F2] border border-[#E8DFC8] text-[#2C241E] placeholder-[#9E8E80] focus:outline-none focus:border-[#BA4A00] focus:ring-1 focus:ring-[#BA4A00]/30 w-36 transition-all"
+                  />
+                  {feelingInput.trim() && (
+                    <button
+                      type="button"
+                      onClick={handleAddFeeling}
+                      className="p-1.5 rounded-full bg-[#BA4A00] text-white hover:bg-[#A04000] cursor-pointer transition-colors shadow-2xs"
+                      title="Add feeling"
+                    >
+                      <Plus className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -884,9 +1357,6 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
                   <span className="text-xs font-bold text-[#4A3B32] uppercase tracking-wider">
                     Written Thoughts
                   </span>
-                  <span className="text-[10px] text-[#8C7B6C] bg-[#FAF7F2] px-2 py-0.5 rounded-full border border-[#E8DFC8]">
-                    {wordCount} words
-                  </span>
                 </div>
 
                 <div className="flex items-center space-x-2">
@@ -899,71 +1369,75 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
                   />
 
                   {/* Speak Thoughts / Voice Diary Button */}
-                  {isVoiceListening ? (
-                    <button
-                      type="button"
-                      onClick={stopVoiceDictation}
-                      className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition-all shadow-xs animate-pulse"
-                      title="Click to stop listening"
-                    >
-                      <Square className="w-3 h-3 fill-current" />
-                      <span>Listening ({voiceDuration}s) · Done</span>
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={startVoiceDictation}
-                      className="px-2.5 py-1 bg-[#FAF7F2] hover:bg-[#F5EBE1] text-[#935116] border border-[#E8DFC8] rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition-colors shadow-2xs"
-                      title="Speak your thoughts directly into this entry"
-                    >
-                      <Mic className="w-3.5 h-3.5 text-[#BA4A00]" />
-                      <span>Speak Thoughts</span>
-                    </button>
+                  {enableMicrophone && (
+                    isVoiceListening ? (
+                      <button
+                        type="button"
+                        onClick={stopVoiceDictation}
+                        className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition-all shadow-xs animate-pulse"
+                        title="Click to stop listening"
+                      >
+                        <Square className="w-3 h-3 fill-current" />
+                        <span>Listening ({voiceDuration}s) · Done</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={startVoiceDictation}
+                        className="px-2.5 py-1 bg-[#FAF7F2] hover:bg-[#F5EBE1] text-[#935116] border border-[#E8DFC8] rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition-colors shadow-2xs"
+                        title="Speak your thoughts directly into this entry"
+                      >
+                        <Mic className="w-3.5 h-3.5 text-[#BA4A00]" />
+                        <span>Speak Thoughts</span>
+                      </button>
+                    )
                   )}
 
                   {/* Daily Photo Moment Visual Anchor Button */}
-                  {photoUrl ? (
-                    <div className="flex items-center space-x-1 bg-[#FAF7F2] pl-1 pr-1.5 py-0.5 rounded-xl border border-[#E8DFC8] shadow-2xs">
-                      <div
-                        onClick={() => setIsPhotoModalOpen(true)}
-                        className="w-5 h-5 rounded-md overflow-hidden bg-black/5 cursor-pointer hover:opacity-80 border border-[#E8DFC8]"
-                        title="View / change daily photo"
-                      >
-                        <img
-                          src={photoUrl}
-                          alt="Moment"
-                          className="w-full h-full object-cover"
-                        />
+                  {enableCamera && (
+                    photoUrl ? (
+                      <div className="flex items-center space-x-1 bg-[#FAF7F2] pl-1 pr-1.5 py-0.5 rounded-xl border border-[#E8DFC8] shadow-2xs">
+                        <div
+                          onClick={() => setIsPhotoModalOpen(true)}
+                          className="w-5 h-5 rounded-md overflow-hidden bg-black/5 cursor-pointer hover:opacity-80 border border-[#E8DFC8]"
+                          title="View / change daily photo"
+                        >
+                          <img
+                            src={photoUrl}
+                            alt="Moment"
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setIsPhotoModalOpen(true)}
+                          className="text-[11px] font-semibold text-[#BA4A00] hover:underline px-1"
+                        >
+                          Photo Attached
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPhotoUrl(undefined);
+                            setPhotoCaption("");
+                          }}
+                          className="text-[#8C7B6C] hover:text-red-600 p-0.5"
+                          title="Remove photo"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
                       </div>
+                    ) : (
                       <button
                         type="button"
                         onClick={() => setIsPhotoModalOpen(true)}
-                        className="text-[11px] font-semibold text-[#BA4A00] hover:underline px-1"
+                        className="px-2.5 py-1 bg-[#FAF7F2] hover:bg-[#F5EBE1] text-[#4A3B32] border border-[#E8DFC8] rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition-colors shadow-2xs"
+                        title="Capture or select a daily photo moment"
                       >
-                        Photo Attached
+                        <Camera className="w-3.5 h-3.5 text-[#BA4A00]" />
+                        <span>+ Photo Moment</span>
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setPhotoUrl(undefined);
-                          setPhotoCaption("");
-                        }}
-                        className="text-[#8C7B6C] hover:text-red-600 p-0.5"
-                        title="Remove photo"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setIsPhotoModalOpen(true)}
-                      className="px-2.5 py-1 bg-[#FAF7F2] hover:bg-[#F5EBE1] text-[#4A3B32] border border-[#E8DFC8] rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition-colors shadow-2xs"
-                      title="Capture or select a daily photo moment"
-                    >
-                      <Camera className="w-3.5 h-3.5 text-[#BA4A00]" />
-                      <span>+ Daily Photo</span>
-                    </button>
+                    )
                   )}
                 </div>
               </div>
@@ -1020,6 +1494,7 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
               {/* Writing Textarea Canvas */}
               <div className="relative">
                 <textarea
+                  ref={thoughtTextareaRef}
                   value={initialThought}
                   onChange={(e) => {
                     const nextVal = e.target.value;
@@ -1027,8 +1502,7 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
                     triggerDynamicWisdomMatch(nextVal, mood, preferredStream);
                   }}
                   placeholder="Pour your thoughts freely onto this page... Or click 'Speak Thoughts' above to dictate naturally with your voice."
-                  rows={12}
-                  className="w-full p-4 rounded-xl bg-[#FAF7F2]/50 border border-[#E8DFC8] text-base text-[#2C241E] placeholder-[#A8988A] focus:outline-none focus:ring-2 focus:ring-[#BA4A00]/30 font-journal leading-relaxed resize-y"
+                  className="w-full min-h-[140px] max-h-[320px] overflow-y-auto p-4 rounded-xl bg-[#FAF7F2]/50 border border-[#E8DFC8] text-base text-[#2C241E] placeholder-[#A8988A] focus:outline-none focus:ring-2 focus:ring-[#BA4A00]/30 font-journal leading-relaxed resize-none"
                 />
 
                 {/* Minimalist Floating Photo Anchor Stamp (if photo exists) */}
@@ -1049,155 +1523,65 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
                   </div>
                 )}
               </div>
-            </div>
 
-            {/* Tags & Categorization */}
-            <div className="pt-2 space-y-2">
-              <div className="flex items-center space-x-2">
-                <Tag className="w-3.5 h-3.5 text-[#8C7B6C]" />
-                <span className="text-xs font-semibold text-[#8C7B6C]">Tags</span>
-              </div>
-              <div className="flex flex-wrap items-center gap-1.5">
-                {tags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full bg-[#F5EBE1] text-[#935116] text-xs border border-[#E8DFC8]"
+              {/* Integrated Writing Toolbar & AI Actions (In the Same Continuous Space) */}
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-[#E8DFC8]/60">
+                <div className="text-xs text-[#7E6E5F] font-journal space-x-1">
+                  <span>{initialThought.trim() ? initialThought.trim().split(/\s+/).length : 0} words written</span>
+                  {/* Reading Time Indicator */}
+                  <span>~{estimatedReadTime} min read</span>
+                </div>
+
+                <div className="flex items-center space-x-1.5">
+                  <button
+                    type="button"
+                    onClick={handleSummarizeEntry}
+                    disabled={isSummarizing || (!initialThought.trim() && messages.length === 0)}
+                    className="text-xs px-2.5 py-1.5 rounded-xl bg-[#FAF7F2] border border-[#E8DFC8] text-[#935116] font-semibold hover:bg-[#F5EBE1] disabled:opacity-40 transition-colors flex items-center space-x-1 cursor-pointer"
+                    title="Synthesize core essence & takeaways from your thoughts"
                   >
-                    <span>#{tag}</span>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveTag(tag)}
-                      className="hover:text-red-600 font-bold ml-1"
-                    >
-                      ×
-                    </button>
-                  </span>
-                ))}
-                <input
-                  type="text"
-                  value={tagInput}
-                  onChange={(e) => setTagInput(e.target.value)}
-                  onKeyDown={handleAddTag}
-                  placeholder="+ Add tag (Enter)"
-                  className="px-2.5 py-1 text-xs rounded-full bg-[#FAF7F2] border border-[#E8DFC8] text-[#2C241E] focus:outline-none focus:border-[#BA4A00] w-32"
-                />
-              </div>
-            </div>
+                    {isSummarizing ? (
+                      <RefreshCw className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <Layers className="w-3 h-3 text-[#BA4A00]" />
+                    )}
+                    <span>{summary ? "Re-Synthesize" : "Synthesize Essence"}</span>
+                  </button>
 
-            {/* Daily Wisdom & Gita Shloka Anchor Card */}
-            <div className="pt-4 border-t border-[#E8DFC8]">
-              <DailyWisdomCard
-                wisdom={currentWisdom}
-                currentMood={mood}
-                preferredStream={preferredStream}
-                onChangeStream={(stream) => {
-                  setPreferredStream(stream);
-                  try {
-                    localStorage.setItem("warmth_wisdom_stream", stream);
-                  } catch (e) {
-                    // ignore
-                  }
-                  setWisdomCycleOffset(0);
-                  // Update current wisdom immediately to the selected stream's library
-                  setCurrentWisdom(getDailyWisdom(mood, stream, 0));
-                  triggerDynamicWisdomMatch(initialThought, mood, stream);
-                }}
-                onCycleWisdom={() => {
-                  const nextOffset = wisdomCycleOffset + 1;
-                  setWisdomCycleOffset(nextOffset);
-                  setCurrentWisdom(getDailyWisdom(mood, preferredStream, nextOffset));
-                }}
-                onSaveBookmark={onToggleWisdomBookmark}
-                isBookmarked={bookmarkedWisdomIds?.includes(currentWisdom.id) || false}
-                onOpenTreasury={() => setIsTreasuryOpen(true)}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Right Column (5 cols): Daily Habits & Focus Tasks + Multi-Turn AI Reflections */}
-        <div className="lg:col-span-5 space-y-6">
-          {/* Interactive Daily Checklist & Tomorrow Planning Dock */}
-          {onUpdateChecklist && onUpdateTomorrowChecklist && onOpenHabitManager && (
-            <DailyChecklistDock
-              currentDate={date}
-              checklist={dailyChecklist || null}
-              habitTemplates={habitTemplates}
-              tomorrowChecklist={tomorrowChecklist || null}
-              onUpdateChecklist={onUpdateChecklist}
-              onUpdateTomorrowChecklist={onUpdateTomorrowChecklist}
-              onOpenHabitManager={onOpenHabitManager}
-              streakDays={streakDays}
-            />
-          )}
-
-          {/* Unified Multi-Turn AI Companion & Insights Panel */}
-          <div className="bg-white rounded-2xl border border-[#E8DFC8] shadow-xs flex flex-col h-[600px] overflow-hidden">
-            {/* Header */}
-            <div className="p-4 bg-[#FAF7F2] border-b border-[#E8DFC8] flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <div className="w-7 h-7 rounded-lg bg-[#D35400] text-white flex items-center justify-center shadow-xs">
-                  <Sparkles className="w-4 h-4" />
-                </div>
-                <div>
-                  <h4 className="font-display font-semibold text-sm text-[#2C241E]">
-                    Warmth AI Companion
-                  </h4>
-                  <p className="text-[10px] text-[#7E6E5F]">
-                    Empathetic reflections & insights
-                  </p>
+                  <button
+                    type="button"
+                    onClick={() => handleSendReflection()}
+                    disabled={isReflecting || !initialThought.trim()}
+                    className="text-xs px-3 py-1.5 rounded-xl bg-[#D35400] text-white font-semibold hover:bg-[#BA4A00] disabled:opacity-40 transition-colors shadow-2xs flex items-center space-x-1.5 cursor-pointer"
+                    title="Receive an empathetic AI reflection on your written thoughts"
+                  >
+                    {isReflecting ? (
+                      <RefreshCw className="w-3 h-3 animate-spin text-amber-200" />
+                    ) : (
+                      <Sparkles className="w-3 h-3 text-amber-200" />
+                    )}
+                    <span>Reflect with AI</span>
+                  </button>
                 </div>
               </div>
 
-              <div className="flex items-center space-x-1.5">
-                <button
-                  type="button"
-                  onClick={handleSummarizeEntry}
-                  disabled={isSummarizing || (!initialThought.trim() && messages.length === 0)}
-                  className="text-xs px-2.5 py-1 rounded-lg bg-white border border-[#E8DFC8] text-[#935116] font-semibold hover:bg-[#F5EBE1] disabled:opacity-40 transition-colors flex items-center space-x-1"
-                  title="Synthesize core essence & takeaways"
-                >
-                  {isSummarizing ? (
-                    <RefreshCw className="w-3 h-3 animate-spin" />
-                  ) : (
-                    <Layers className="w-3 h-3 text-[#BA4A00]" />
-                  )}
-                  <span>{summary ? "Re-Synthesize" : "Synthesize"}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleSendReflection()}
-                  disabled={isReflecting || !initialThought.trim()}
-                  className="text-xs px-2.5 py-1 rounded-lg bg-[#D35400] text-white font-semibold hover:bg-[#BA4A00] disabled:opacity-40 transition-colors shadow-xs"
-                >
-                  Reflect
-                </button>
-              </div>
-            </div>
-
-            {/* Scrollable Content Stream: Highlights + Chat */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3.5 bg-[#FAF7F2]/30">
-              {/* Optional Synthesized Essence Block (if present) */}
+              {/* Distilled Summary & Insights (In Same Space if Generated) */}
               {summary && (
-                <div className="p-3.5 rounded-2xl bg-amber-50/70 border border-amber-200/80 space-y-2 animate-fade-in">
-                  <div className="flex items-center justify-between text-[10px] font-bold text-amber-900 uppercase tracking-wider">
-                    <span className="flex items-center space-x-1">
-                      <Sparkles className="w-3 h-3 text-[#E67E22]" />
+                <div className="mt-2 p-4 rounded-2xl bg-amber-50/80 border-l-4 border-[#D35400] border-t border-r border-b border-amber-200/70 space-y-2 animate-fade-in">
+                  <div className="flex items-center justify-between text-[11px] font-bold text-amber-950 uppercase tracking-wider">
+                    <span className="flex items-center space-x-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-[#E67E22]" />
                       <span>Distilled Essence</span>
                     </span>
-                    {insights.length > 0 && <span>{insights.length} Takeaways</span>}
+                    {insights.length > 0 && <span className="text-[10px] text-amber-800 font-medium">{insights.length} Takeaways</span>}
                   </div>
-                  <p className="text-xs font-journal text-[#3E3127] italic leading-relaxed">
+                  <p className="text-sm font-journal text-[#3E3127] italic leading-relaxed">
                     "{summary}"
                   </p>
                   {insights.length > 0 && (
-                    <div className="pt-1.5 border-t border-amber-200/50 space-y-1">
+                    <div className="pt-2 border-t border-amber-200/50 space-y-1">
                       {insights.map((insight, idx) => (
-                        <div
-                          key={idx}
-                          className="text-[11px] text-[#4A3B32] font-journal flex items-start space-x-1.5"
-                        >
+                        <div key={idx} className="text-xs text-[#4A3B32] font-journal flex items-start space-x-2">
                           <span className="text-[#BA4A00] font-bold">•</span>
                           <span>{insight}</span>
                         </div>
@@ -1207,90 +1591,136 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
                 </div>
               )}
 
-              {/* Chat Message Stream */}
-              {messages.length === 0 && !summary ? (
-                <div className="h-full flex flex-col items-center justify-center text-center p-6 text-[#8C7B6C] space-y-3">
-                  <div className="w-12 h-12 rounded-full bg-[#F5EBE1] flex items-center justify-center text-[#BA4A00]">
-                    <Feather className="w-6 h-6" />
+              {/* Seamless AI Reflections Stream & Inline Prompt in the Same Canvas */}
+              {messages.length > 0 || isReflecting ? (
+                <div className="mt-3 pt-3 border-t border-[#E8DFC8]/70 space-y-3 animate-fade-in">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-1.5 text-xs font-semibold text-[#5A4B3E]">
+                      <Sparkles className="w-3.5 h-3.5 text-[#BA4A00]" />
+                      <span>Reflective Dialogue for {date}</span>
+                    </div>
+                    <span className="text-[10px] text-[#8C7B6C]">Saved into this day's entry</span>
                   </div>
-                  <div className="space-y-1">
-                    <p className="text-xs font-semibold text-[#4A3B32]">
-                      Your reflective sanctuary is quiet
-                    </p>
-                    <p className="text-[11px] max-w-xs">
-                      Write your thoughts on the left, then click <strong>"Reflect"</strong> or <strong>"Synthesize"</strong> above to explore deeper.
-                    </p>
+
+                  <div
+                    ref={chatContainerRef}
+                    className="space-y-2.5 max-h-[260px] overflow-y-auto pr-1"
+                  >
+                    {messages.map((msg) => (
+                      <div
+                        key={msg.id}
+                        className={`flex flex-col ${
+                          msg.sender === "user" ? "items-end" : "items-start"
+                        }`}
+                      >
+                        <div className="flex items-center space-x-1 text-[10px] text-[#8C7B6C] mb-0.5 px-1">
+                          <span className="font-semibold">{msg.sender === "user" ? "You" : "Warmth AI"}</span>
+                          <span>·</span>
+                          <span>
+                            {new Date(msg.timestamp).toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </span>
+                        </div>
+                        <div
+                          className={`p-3 rounded-2xl text-xs sm:text-sm font-journal leading-relaxed whitespace-pre-line ${
+                            msg.sender === "user"
+                              ? "bg-[#2C241E] text-[#FAF7F2] rounded-br-xs max-w-[88%] shadow-2xs"
+                              : "bg-[#FAF7F2] text-[#2C241E] border border-[#E8DFC8] rounded-bl-xs w-full shadow-2xs"
+                          }`}
+                        >
+                          {msg.text}
+                        </div>
+                      </div>
+                    ))}
+
+                    {isReflecting && (
+                      <div className="p-3 rounded-2xl bg-[#FAF7F2] border border-[#E8DFC8] text-xs font-journal text-[#7E6E5F] flex items-center space-x-2 shadow-2xs">
+                        <Sparkles className="w-3.5 h-3.5 text-[#E67E22] animate-spin" />
+                        <span>Warmth is contemplating your words...</span>
+                      </div>
+                    )}
+                    <div ref={messagesEndRef} />
                   </div>
+
+                  {/* Inline Conversational Input */}
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      handleSendReflection();
+                    }}
+                    className="flex items-center space-x-2 pt-1"
+                  >
+                    <input
+                      type="text"
+                      value={chatInput}
+                      onChange={(e) => setChatInput(e.target.value)}
+                      placeholder="Ask a reflective question or continue exploring deeper..."
+                      disabled={isReflecting}
+                      className="flex-1 px-3 py-2 rounded-xl bg-[#FAF7F2] border border-[#E8DFC8] text-xs text-[#2C241E] placeholder-[#9E8E80] focus:outline-none focus:ring-2 focus:ring-[#BA4A00]/40 font-journal"
+                    />
+                    <button
+                      type="submit"
+                      disabled={!chatInput.trim() || isReflecting}
+                      className="p-2 bg-[#D35400] hover:bg-[#BA4A00] disabled:opacity-40 text-white rounded-xl transition-all shadow-xs shrink-0 cursor-pointer"
+                      title="Send message to AI companion"
+                    >
+                      <Send className="w-3.5 h-3.5" />
+                    </button>
+                  </form>
                 </div>
               ) : (
-                messages.map((msg) => (
-                  <div
-                    key={msg.id}
-                    className={`flex flex-col ${
-                      msg.sender === "user" ? "items-end" : "items-start"
-                    }`}
-                  >
-                    <div className="flex items-center space-x-1 text-[10px] text-[#8C7B6C] mb-1 px-1">
-                      <span>{msg.sender === "user" ? "You" : "Warmth AI"}</span>
-                      <span>·</span>
-                      <span>
-                        {new Date(msg.timestamp).toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </span>
-                    </div>
-
-                    <div
-                      className={`max-w-[90%] p-3.5 rounded-2xl text-xs font-journal leading-relaxed whitespace-pre-line ${
-                        msg.sender === "user"
-                          ? "bg-[#2C241E] text-[#FAF7F2] rounded-br-xs shadow-2xs"
-                          : "bg-white text-[#2C241E] border border-[#E8DFC8] rounded-bl-xs shadow-2xs"
-                      }`}
-                    >
-                      {msg.text}
-                    </div>
-                  </div>
-                ))
-              )}
-
-              {isReflecting && (
-                <div className="flex items-start space-x-2">
-                  <div className="p-3.5 rounded-2xl bg-white border border-[#E8DFC8] text-xs font-journal text-[#7E6E5F] flex items-center space-x-2 shadow-2xs">
-                    <Sparkles className="w-3.5 h-3.5 text-[#E67E22] animate-spin" />
-                    <span>Warmth is listening and reflecting...</span>
-                  </div>
+                <div className="pt-2 text-center text-[11px] text-[#8C7B6C] font-journal">
+                  Pour your thoughts above, then click <strong className="text-[#935116]">Reflect with AI</strong> to weave dialogue and insights right onto this page.
                 </div>
               )}
-              <div ref={messagesEndRef} />
             </div>
+          </div>
+        </div>
 
-            {/* Chat Input Bar */}
-            <div className="p-3 bg-white border-t border-[#E8DFC8]">
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  handleSendReflection();
-                }}
-                className="flex items-center space-x-2"
-              >
-                <input
-                  type="text"
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  placeholder="Ask a question or explore a thought deeper..."
-                  disabled={isReflecting}
-                  className="flex-1 px-3.5 py-2 rounded-xl bg-[#FAF7F2] border border-[#E8DFC8] text-xs text-[#2C241E] placeholder-[#9E8E80] focus:outline-none focus:ring-2 focus:ring-[#BA4A00]/40 font-journal"
-                />
-                <button
-                  type="submit"
-                  disabled={!chatInput.trim() || isReflecting}
-                  className="p-2 bg-[#D35400] hover:bg-[#BA4A00] disabled:opacity-40 text-white rounded-xl transition-all shadow-xs shrink-0 cursor-pointer"
-                >
-                  <Send className="w-4 h-4" />
-                </button>
-              </form>
-            </div>
+        {/* Right Column (5 cols): Daily Habits & Focus Tasks + Daily Wisdom Anchor */}
+        <div className="lg:col-span-5 space-y-6">
+          {/* Interactive Daily Checklist & Tomorrow Planning Dock */}
+          {onUpdateChecklist && onUpdateTomorrowChecklist && onOpenHabitManager && (
+            <DailyChecklistDock
+              currentDate={date}
+              checklist={activeChecklist}
+              habitTemplates={habitTemplates}
+              tomorrowChecklist={activeTomorrowChecklist}
+              onUpdateChecklist={onUpdateChecklist}
+              onUpdateTomorrowChecklist={onUpdateTomorrowChecklist}
+              onOpenHabitManager={onOpenHabitManager}
+              streakDays={streakDays}
+            />
+          )}
+
+          {/* Daily Wisdom & Gita Shloka Anchor Card */}
+          <div className="bg-white rounded-2xl border border-[#E8DFC8] p-5 shadow-xs">
+            <DailyWisdomCard
+              wisdom={currentWisdom}
+              currentMood={mood}
+              preferredStream={preferredStream}
+              onChangeStream={(stream) => {
+                setPreferredStream(stream);
+                try {
+                  localStorage.setItem("warmth_wisdom_stream", stream);
+                } catch (e) {
+                  // ignore
+                }
+                setWisdomCycleOffset(0);
+                setCurrentWisdom(getDailyWisdom(mood, stream, 0));
+                triggerDynamicWisdomMatch(initialThought, mood, stream);
+              }}
+              onCycleWisdom={() => {
+                const nextOffset = wisdomCycleOffset + 1;
+                setWisdomCycleOffset(nextOffset);
+                setCurrentWisdom(getDailyWisdom(mood, preferredStream, nextOffset));
+              }}
+              onSaveBookmark={onToggleWisdomBookmark}
+              isBookmarked={bookmarkedWisdomIds?.includes(currentWisdom.id) || false}
+              onOpenTreasury={() => setIsTreasuryOpen(true)}
+            />
           </div>
         </div>
       </div>

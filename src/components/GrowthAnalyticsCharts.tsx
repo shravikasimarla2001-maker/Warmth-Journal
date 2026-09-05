@@ -18,6 +18,8 @@ import {
   Sparkles,
   Info,
   CheckCircle2,
+  Target,
+  Layers,
 } from "lucide-react";
 import { DailyChecklist, JournalEntry } from "../types";
 
@@ -155,32 +157,50 @@ export const GrowthAnalyticsCharts: React.FC<GrowthAnalyticsChartsProps> = ({
     };
   }, [entries, timelineData]);
 
+  // Grouped vs Stacked bar mode
+  const [barMode, setBarMode] = useState<"grouped" | "stacked">("grouped");
+
   // Custom Tooltip for Habits vs Mood
   const CustomHabitMoodTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload;
+      const totalActions = (data.habitsCompleted || 0) + (data.tasksCompleted || 0);
       return (
-        <div className="bg-[#FAF7F2] border border-[#E8DFC8] rounded-2xl p-3 shadow-xl text-xs space-y-1.5 z-50">
-          <div className="font-semibold text-[#2C241E] flex items-center justify-between gap-4 border-b border-[#E8DFC8]/70 pb-1">
+        <div className="bg-[#FAF7F2] border border-[#E8DFC8] rounded-2xl p-3.5 shadow-xl text-xs space-y-2 z-50 min-w-[190px]">
+          <div className="font-semibold text-[#2C241E] flex items-center justify-between gap-4 border-b border-[#E8DFC8]/70 pb-1.5">
             <span>{data.displayDate} ({data.dayOfWeek})</span>
             {data.moodName && (
-              <span className="text-[11px] font-medium text-[#935116]">
-                {data.moodEmoji} {data.moodName}
+              <span className="text-[11px] font-medium text-[#935116] flex items-center space-x-1">
+                <span>{data.moodEmoji}</span>
+                <span>{data.moodName}</span>
               </span>
             )}
           </div>
-          <div className="space-y-0.5 text-[11px]">
-            <div className="flex items-center justify-between text-emerald-800">
-              <span>Habits Done:</span>
+          <div className="space-y-1 text-[11px]">
+            <div className="flex items-center justify-between text-[#355E52]">
+              <span className="flex items-center space-x-1.5">
+                <span className="w-2 h-2 rounded-xs bg-[#52796F]" />
+                <span>Daily Habits:</span>
+              </span>
               <span className="font-bold">{data.habitsCompleted}</span>
             </div>
-            <div className="flex items-center justify-between text-indigo-800">
-              <span>Focus Tasks:</span>
+            <div className="flex items-center justify-between text-[#9C4210]">
+              <span className="flex items-center space-x-1.5">
+                <span className="w-2 h-2 rounded-xs bg-[#C05621]" />
+                <span>Key Focus Done:</span>
+              </span>
               <span className="font-bold">{data.tasksCompleted}</span>
             </div>
+            <div className="flex items-center justify-between text-[#7E6E5F] pt-1 border-t border-[#E8DFC8]/50">
+              <span>Total Intentional Actions:</span>
+              <span className="font-bold text-[#2C241E]">{totalActions}</span>
+            </div>
             {data.moodScore !== null && (
-              <div className="flex items-center justify-between text-amber-900 pt-0.5 border-t border-[#E8DFC8]/40">
-                <span>Mood Equilibrium:</span>
+              <div className="flex items-center justify-between text-[#B45309] pt-1 border-t border-[#E8DFC8]/50">
+                <span className="flex items-center space-x-1.5">
+                  <span className="w-2.5 h-1 rounded-full bg-[#D97706]" />
+                  <span>Mood Equilibrium:</span>
+                </span>
                 <span className="font-bold">{data.moodScore} / 10</span>
               </div>
             )}
@@ -232,33 +252,68 @@ export const GrowthAnalyticsCharts: React.FC<GrowthAnalyticsChartsProps> = ({
 
       {/* Grid of the 2 Focused Charts: Habit vs Mood + Emotional Spectrum */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* CHART 1: Habit Completion & Emotional Equilibrium (2 Cols) */}
+        {/* CHART 1: Habits & Focus Completion vs Emotional Equilibrium (2 Cols) */}
         <div className="lg:col-span-2 bg-white rounded-3xl p-5 sm:p-6 border border-[#E8DFC8] shadow-xs flex flex-col justify-between space-y-4">
           <div>
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
-              <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-8 h-8 rounded-xl bg-emerald-50 text-[#52796F] flex items-center justify-center border border-emerald-100">
                   <CheckCircle2 className="w-4 h-4" />
                 </div>
                 <div>
-                  <h4 className="font-display font-semibold text-sm sm:text-base text-[#2C241E]">
-                    Habit Completion & Emotional Equilibrium
+                  <h4 className="font-display font-semibold text-sm sm:text-base text-[#2C241E] flex items-center space-x-1.5">
+                    <span>Habits, Focus & Emotional Equilibrium</span>
                   </h4>
                   <span className="text-[11px] text-[#7E6E5F]">
-                    How daily ritual discipline correlates with your sense of calm
+                    Correlating daily ritual discipline and key priorities with your emotional state
                   </span>
                 </div>
               </div>
 
-              <div className="flex items-center space-x-3 text-xs bg-[#FAF7F2] px-3 py-1 rounded-full border border-[#E8DFC8] self-start sm:self-auto">
-                <span className="flex items-center space-x-1 text-[#2C241E]">
-                  <span className="w-2.5 h-2.5 rounded-sm bg-[#2E7D32] inline-block" />
-                  <span>Habits Done</span>
-                </span>
-                <span className="flex items-center space-x-1 text-[#BA4A00]">
-                  <span className="w-2.5 h-1 bg-[#D35400] rounded-full inline-block" />
-                  <span>Mood Score</span>
-                </span>
+              {/* Legend & Layout Toggle Controls */}
+              <div className="flex items-center flex-wrap gap-2 self-start sm:self-auto">
+                <div className="flex items-center space-x-2.5 text-xs bg-[#FAF7F2] px-3 py-1 rounded-full border border-[#E8DFC8]">
+                  <span className="flex items-center space-x-1 text-[#355E52] font-medium" title="Mindful habits completed">
+                    <span className="w-2.5 h-2.5 rounded-xs bg-[#52796F] inline-block" />
+                    <span>Habits</span>
+                  </span>
+                  <span className="flex items-center space-x-1 text-[#9C4210] font-medium" title="Key focus priority tasks completed">
+                    <span className="w-2.5 h-2.5 rounded-xs bg-[#C05621] inline-block" />
+                    <span>Focus Done</span>
+                  </span>
+                  <span className="flex items-center space-x-1 text-[#B45309] font-medium" title="Mood Equilibrium Score (0-10)">
+                    <span className="w-2.5 h-1 bg-[#D97706] rounded-full inline-block" />
+                    <span>Mood</span>
+                  </span>
+                </div>
+
+                {/* Grouped vs Stacked pill */}
+                <div className="flex items-center space-x-0.5 bg-[#FAF7F2] p-0.5 rounded-xl border border-[#E8DFC8]">
+                  <button
+                    type="button"
+                    onClick={() => setBarMode("grouped")}
+                    className={`px-2 py-0.5 rounded-lg text-[10px] font-semibold transition-all cursor-pointer ${
+                      barMode === "grouped"
+                        ? "bg-white text-[#2C241E] shadow-2xs border border-[#E8DFC8]"
+                        : "text-[#7E6E5F] hover:text-[#2C241E]"
+                    }`}
+                    title="View habits and focus side-by-side"
+                  >
+                    Grouped
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBarMode("stacked")}
+                    className={`px-2 py-0.5 rounded-lg text-[10px] font-semibold transition-all cursor-pointer ${
+                      barMode === "stacked"
+                        ? "bg-white text-[#2C241E] shadow-2xs border border-[#E8DFC8]"
+                        : "text-[#7E6E5F] hover:text-[#2C241E]"
+                    }`}
+                    title="View habits and focus stacked as total daily intentions"
+                  >
+                    Stacked
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -268,6 +323,7 @@ export const GrowthAnalyticsCharts: React.FC<GrowthAnalyticsChartsProps> = ({
                 <ComposedChart
                   data={timelineData}
                   margin={{ top: 10, right: 10, left: -25, bottom: 0 }}
+                  barGap={2}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="#F4EDE2" vertical={false} />
                   <XAxis
@@ -276,13 +332,13 @@ export const GrowthAnalyticsCharts: React.FC<GrowthAnalyticsChartsProps> = ({
                     axisLine={{ stroke: "#E8DFC8" }}
                     tickLine={false}
                   />
-                  {/* Left Axis: Habits count */}
+                  {/* Left Axis: Daily Habits & Focus actions count */}
                   <YAxis
                     yAxisId="left"
                     orientation="left"
                     domain={[0, "dataMax + 1"]}
                     allowDecimals={false}
-                    tick={{ fill: "#2E7D32", fontSize: 10 }}
+                    tick={{ fill: "#52796F", fontSize: 10 }}
                     axisLine={false}
                     tickLine={false}
                   />
@@ -293,26 +349,65 @@ export const GrowthAnalyticsCharts: React.FC<GrowthAnalyticsChartsProps> = ({
                     domain={[2, 10]}
                     ticks={[4, 7, 10]}
                     tickFormatter={(val) => `${val}`}
-                    tick={{ fill: "#D35400", fontSize: 10 }}
+                    tick={{ fill: "#D97706", fontSize: 10 }}
                     axisLine={false}
                     tickLine={false}
                   />
                   <Tooltip content={<CustomHabitMoodTooltip />} />
-                  <Bar
-                    yAxisId="left"
-                    dataKey="habitsCompleted"
-                    fill="#2E7D32"
-                    radius={[6, 6, 0, 0]}
-                    maxBarSize={28}
-                  />
+
+                  {/* Dual Series Bars: Sage Green for Habits, Terracotta for Focus */}
+                  {barMode === "grouped" ? (
+                    <>
+                      <Bar
+                        yAxisId="left"
+                        dataKey="habitsCompleted"
+                        name="Daily Habits"
+                        fill="#52796F"
+                        radius={[4, 4, 0, 0]}
+                        maxBarSize={15}
+                      />
+                      <Bar
+                        yAxisId="left"
+                        dataKey="tasksCompleted"
+                        name="Key Focus Done"
+                        fill="#C05621"
+                        radius={[4, 4, 0, 0]}
+                        maxBarSize={15}
+                      />
+                    </>
+                  ) : (
+                    <>
+                      <Bar
+                        yAxisId="left"
+                        dataKey="habitsCompleted"
+                        name="Daily Habits"
+                        stackId="dailyIntentions"
+                        fill="#52796F"
+                        radius={[0, 0, 0, 0]}
+                        maxBarSize={22}
+                      />
+                      <Bar
+                        yAxisId="left"
+                        dataKey="tasksCompleted"
+                        name="Key Focus Done"
+                        stackId="dailyIntentions"
+                        fill="#C05621"
+                        radius={[4, 4, 0, 0]}
+                        maxBarSize={22}
+                      />
+                    </>
+                  )}
+
+                  {/* Mood Equilibrium Curve (Warm Amber) */}
                   <Line
                     yAxisId="right"
                     type="monotone"
                     dataKey="moodScore"
-                    stroke="#D35400"
+                    stroke="#D97706"
                     strokeWidth={2.5}
                     connectNulls={true}
-                    dot={{ r: 4, fill: "#D35400", stroke: "#FFFFFF", strokeWidth: 1.5 }}
+                    dot={{ r: 4, fill: "#D97706", stroke: "#FFFFFF", strokeWidth: 1.5 }}
+                    activeDot={{ r: 6, fill: "#D97706", stroke: "#FFFFFF", strokeWidth: 2 }}
                   />
                 </ComposedChart>
               </ResponsiveContainer>
@@ -323,7 +418,7 @@ export const GrowthAnalyticsCharts: React.FC<GrowthAnalyticsChartsProps> = ({
             <div className="flex items-center space-x-2">
               <Info className="w-4 h-4 text-[#BA4A00] shrink-0" />
               <span>
-                <strong>Insight:</strong> Days with 3+ completed habits correlate with higher peacefulness and consistency scores.
+                <strong>Insight:</strong> Days combining completed habits with 1–3 focus priorities show higher sustained mood scores and emotional clarity.
               </span>
             </div>
             <span className="text-[11px] font-semibold text-[#2C241E] shrink-0 hidden sm:inline">

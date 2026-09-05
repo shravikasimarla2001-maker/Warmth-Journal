@@ -22,8 +22,13 @@ import {
   X,
   ExternalLink,
   Flame,
+  Maximize2,
+  Target,
+  Plus,
+  Circle,
+  CheckCircle2,
 } from "lucide-react";
-import { JournalEntry, MoodType } from "../types";
+import { DailyChecklist, JournalEntry, MoodType, PriorityTask } from "../types";
 import { DailyPhotoModal } from "./DailyPhotoModal";
 
 interface MemoriesViewProps {
@@ -35,19 +40,29 @@ interface MemoriesViewProps {
   onNewEntry: () => void;
   selectedFilterDate?: string | null;
   onClearDateFilter?: () => void;
+  dailyChecklists?: Record<string, DailyChecklist>;
+  onUpdateDailyChecklist?: (checklist: DailyChecklist) => Promise<void>;
+  userId?: string;
 }
 
 const MOOD_EMOJIS: Record<string, string> = {
-  peaceful: "🌿",
+  calm: "🌿",
+  happy: "☀️",
   grateful: "🙏",
+  low: "🌧️",
+  overwhelmed: "🌊",
+  peaceful: "🌿",
   reflective: "🕯️",
   hopeful: "🌅",
   inspired: "✨",
   content: "☕",
   curious: "🔍",
-  overwhelmed: "🌊",
-  melancholic: "🌧️",
   determined: "🔥",
+  joyful: "☀️",
+  mindful: "🧘",
+  melancholic: "🌧️",
+  fatigued: "🌙",
+  uncertain: "🌫️",
 };
 
 export const MemoriesView: React.FC<MemoriesViewProps> = ({
@@ -59,9 +74,12 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
   onNewEntry,
   selectedFilterDate,
   onClearDateFilter,
+  dailyChecklists = {},
+  onUpdateDailyChecklist,
+  userId,
 }) => {
-  // Mode switcher: "timeline" | "calendar" | "photos"
-  const [viewMode, setViewMode] = useState<"timeline" | "calendar" | "photos">("timeline");
+  // Mode switcher: "calendar" | "timeline" | "photos"
+  const [viewMode, setViewMode] = useState<"calendar" | "timeline" | "photos">("calendar");
 
   // Search & Filters
   const [searchTerm, setSearchTerm] = useState("");
@@ -88,6 +106,103 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
     title?: string;
   } | null>(null);
 
+  // Selected Day Key Focus State
+  const [newFocusText, setNewFocusText] = useState("");
+  const [isAddingFocus, setIsAddingFocus] = useState(false);
+
+  // Focus tasks for currently selected calendar date
+  const selectedDayChecklist = dailyChecklists[calendarSelectedDate];
+  const selectedPriorityTasks: PriorityTask[] = selectedDayChecklist?.priorityTasks || [];
+
+  // Toggle Focus Task for Selected Date
+  const handleToggleFocusTask = async (taskId: string) => {
+    if (!onUpdateDailyChecklist) return;
+
+    const currentTasks = selectedPriorityTasks;
+    const updatedTasks = currentTasks.map((task) => {
+      if (task.id === taskId) {
+        const nextCompleted = !task.completed;
+        return {
+          ...task,
+          completed: nextCompleted,
+          completedAt: nextCompleted ? new Date().toISOString() : undefined,
+        };
+      }
+      return task;
+    });
+
+    const habits = selectedDayChecklist?.habits || [];
+    const completedHabits = habits.filter((h) => h.completed).length;
+    const completedTasks = updatedTasks.filter((t) => t.completed).length;
+    const totalCompleted = completedHabits + completedTasks;
+    const totalItems = habits.length + updatedTasks.length;
+
+    await onUpdateDailyChecklist({
+      date: calendarSelectedDate,
+      userId: selectedDayChecklist?.userId || userId || "active_user",
+      habits,
+      priorityTasks: updatedTasks,
+      totalCompleted,
+      totalItems,
+      updatedAt: new Date().toISOString(),
+    });
+  };
+
+  // Add Focus Task for Selected Date
+  const handleAddFocusTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newFocusText.trim() || !onUpdateDailyChecklist) return;
+
+    const newTask: PriorityTask = {
+      id: "task_" + Date.now(),
+      text: newFocusText.trim(),
+      completed: false,
+      createdAt: new Date().toISOString(),
+    };
+
+    const updatedTasks = [...selectedPriorityTasks, newTask];
+    setNewFocusText("");
+    setIsAddingFocus(false);
+
+    const habits = selectedDayChecklist?.habits || [];
+    const completedHabits = habits.filter((h) => h.completed).length;
+    const completedTasks = updatedTasks.filter((t) => t.completed).length;
+    const totalCompleted = completedHabits + completedTasks;
+    const totalItems = habits.length + updatedTasks.length;
+
+    await onUpdateDailyChecklist({
+      date: calendarSelectedDate,
+      userId: selectedDayChecklist?.userId || userId || "active_user",
+      habits,
+      priorityTasks: updatedTasks,
+      totalCompleted,
+      totalItems,
+      updatedAt: new Date().toISOString(),
+    });
+  };
+
+  // Delete Focus Task for Selected Date
+  const handleDeleteFocusTask = async (taskId: string) => {
+    if (!onUpdateDailyChecklist) return;
+
+    const updatedTasks = selectedPriorityTasks.filter((t) => t.id !== taskId);
+    const habits = selectedDayChecklist?.habits || [];
+    const completedHabits = habits.filter((h) => h.completed).length;
+    const completedTasks = updatedTasks.filter((t) => t.completed).length;
+    const totalCompleted = completedHabits + completedTasks;
+    const totalItems = habits.length + updatedTasks.length;
+
+    await onUpdateDailyChecklist({
+      date: calendarSelectedDate,
+      userId: selectedDayChecklist?.userId || userId || "active_user",
+      habits,
+      priorityTasks: updatedTasks,
+      totalCompleted,
+      totalItems,
+      updatedAt: new Date().toISOString(),
+    });
+  };
+
   // Calendar Math
   const year = currentCalendarDate.getFullYear();
   const month = currentCalendarDate.getMonth();
@@ -111,6 +226,32 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
     acc[entry.date].push(entry);
     return acc;
   }, {});
+
+  // Extract the latest photo recorded on a given day
+  const getDayPhotoStats = (dayEntries: JournalEntry[]) => {
+    const photoEntries = dayEntries.filter(
+      (e) => typeof e.photoUrl === "string" && e.photoUrl.trim().length > 0
+    );
+    if (photoEntries.length === 0) {
+      return { latestPhotoUrl: null, latestPhotoEntry: null, photoCount: 0 };
+    }
+
+    // Sort descending: newest updatedAt or createdAt or date
+    const sorted = [...photoEntries].sort((a, b) => {
+      const timeA = new Date(a.updatedAt || a.createdAt || a.date).getTime();
+      const timeB = new Date(b.updatedAt || b.createdAt || b.date).getTime();
+      if (!isNaN(timeA) && !isNaN(timeB) && timeA !== timeB) {
+        return timeB - timeA;
+      }
+      return (b.id || "").localeCompare(a.id || "");
+    });
+
+    return {
+      latestPhotoUrl: sorted[0].photoUrl!,
+      latestPhotoEntry: sorted[0],
+      photoCount: sorted.length,
+    };
+  };
 
   // Filtered entries for Timeline & Photo Wall
   const filteredEntries = entries.filter((entry) => {
@@ -198,20 +339,8 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
         {/* 1-Click View Switcher */}
         <div className="flex items-center space-x-1.5 bg-[#EFE7DA] p-1.5 rounded-2xl border border-[#E3D7C3] self-start md:self-auto">
           <button
-            onClick={() => setViewMode("timeline")}
-            className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
-              viewMode === "timeline"
-                ? "bg-white text-[#2C241E] shadow-sm scale-102"
-                : "text-[#7E6E5F] hover:text-[#2C241E]"
-            }`}
-          >
-            <BookOpen className="w-4 h-4 text-[#BA4A00]" />
-            <span>Timeline</span>
-          </button>
-
-          <button
             onClick={() => setViewMode("calendar")}
-            className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
+            className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
               viewMode === "calendar"
                 ? "bg-white text-[#2C241E] shadow-sm scale-102"
                 : "text-[#7E6E5F] hover:text-[#2C241E]"
@@ -222,8 +351,20 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
           </button>
 
           <button
+            onClick={() => setViewMode("timeline")}
+            className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+              viewMode === "timeline"
+                ? "bg-white text-[#2C241E] shadow-sm scale-102"
+                : "text-[#7E6E5F] hover:text-[#2C241E]"
+            }`}
+          >
+            <BookOpen className="w-4 h-4 text-[#BA4A00]" />
+            <span>Archives</span>
+          </button>
+
+          <button
             onClick={() => setViewMode("photos")}
-            className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
+            className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
               viewMode === "photos"
                 ? "bg-white text-[#2C241E] shadow-sm scale-102"
                 : "text-[#7E6E5F] hover:text-[#2C241E]"
@@ -399,12 +540,27 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
 
                       {/* Header Info */}
                       <div className="flex items-center justify-between text-xs text-[#7E6E5F] mb-2.5">
-                        <div className="flex items-center space-x-2">
+                        <div className="flex flex-wrap items-center gap-1.5">
                           <span className="px-2.5 py-1 rounded-full bg-[#FAF7F2] border border-[#E8DFC8] text-[#4A3B32] font-semibold text-[11px] flex items-center space-x-1">
                             <span>{moodEmoji}</span>
                             <span className="capitalize">{entry.mood}</span>
                           </span>
-                          <span className="text-[11px] text-[#9C8E7E]">{entry.date}</span>
+                          {entry.customFeelings && entry.customFeelings.map((cf) => (
+                            <span
+                              key={cf}
+                              className="px-2 py-0.5 rounded-full bg-[#F5EBE1] border border-[#E8DFC8] text-[#935116] text-[10px] font-medium"
+                            >
+                              ✨ {cf}
+                            </span>
+                          ))}
+                          <div className="flex items-center space-x-1.5 text-[11px] text-[#9C8E7E]" title={entry.createdAt ? `Entry created: ${new Date(entry.createdAt).toLocaleString()}` : undefined}>
+                            <span>{entry.date}</span>
+                            {entry.createdAt && (
+                              <span className="text-[10px] text-[#B5A898]">
+                                • {new Date(entry.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                              </span>
+                            )}
+                          </div>
                         </div>
 
                         {/* Favorite Button */}
@@ -521,11 +677,11 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
       {viewMode === "calendar" && (
         <div className="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Left 2 Cols: Interactive Calendar Grid */}
-          <div className="lg:col-span-2 bg-white rounded-3xl p-6 border border-[#E8DFC8] shadow-xs">
+          <div className="lg:col-span-2 bg-white dark:bg-[#1E1915] rounded-3xl p-6 border border-[#E8DFC8] dark:border-[#382E25] shadow-xs">
             {/* Month Header Navigation */}
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center space-x-3">
-                <h2 className="font-display font-bold text-xl text-[#2C241E]">
+                <h2 className="font-display font-bold text-xl text-[#2C241E] dark:text-[#F5EBE1]">
                   {currentCalendarDate.toLocaleDateString("en-US", {
                     month: "long",
                     year: "numeric",
@@ -533,7 +689,7 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
                 </h2>
                 <button
                   onClick={jumpToToday}
-                  className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-[#FAF7F2] border border-[#E8DFC8] text-[#7E6E5F] hover:text-[#2C241E]"
+                  className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-[#FAF7F2] dark:bg-[#2C241E] border border-[#E8DFC8] dark:border-[#3E342B] text-[#7E6E5F] dark:text-[#D5C7B7] hover:text-[#2C241E] dark:hover:text-[#F5EBE1] transition-colors cursor-pointer"
                 >
                   Today
                 </button>
@@ -543,14 +699,14 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
                 <button
                   onClick={prevMonth}
                   aria-label="Previous month"
-                  className="p-2 rounded-xl hover:bg-[#F5EBE1] text-[#7E6E5F] hover:text-[#2C241E] transition-colors"
+                  className="p-2 rounded-xl hover:bg-[#F5EBE1] dark:hover:bg-[#2C241E] text-[#7E6E5F] dark:text-[#D5C7B7] hover:text-[#2C241E] dark:hover:text-[#F5EBE1] transition-colors cursor-pointer"
                 >
                   <ChevronLeft className="w-5 h-5" />
                 </button>
                 <button
                   onClick={nextMonth}
                   aria-label="Next month"
-                  className="p-2 rounded-xl hover:bg-[#F5EBE1] text-[#7E6E5F] hover:text-[#2C241E] transition-colors"
+                  className="p-2 rounded-xl hover:bg-[#F5EBE1] dark:hover:bg-[#2C241E] text-[#7E6E5F] dark:text-[#D5C7B7] hover:text-[#2C241E] dark:hover:text-[#F5EBE1] transition-colors cursor-pointer"
                 >
                   <ChevronRight className="w-5 h-5" />
                 </button>
@@ -558,7 +714,7 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
             </div>
 
             {/* Days of Week Header */}
-            <div className="grid grid-cols-7 gap-1 text-center font-medium text-xs text-[#9C8E7E] pb-2 border-b border-[#F0E8D9]">
+            <div className="grid grid-cols-7 gap-1 text-center font-medium text-xs text-[#9C8E7E] dark:text-[#A89887] pb-2 border-b border-[#F0E8D9] dark:border-[#382E25]">
               <span>Sun</span>
               <span>Mon</span>
               <span>Tue</span>
@@ -572,7 +728,7 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
             <div className="grid grid-cols-7 gap-2 mt-3">
               {/* Empty leading days */}
               {Array.from({ length: firstDayOfMonth }).map((_, i) => (
-                <div key={`empty-${i}`} className="min-h-[85px] rounded-2xl bg-transparent" />
+                <div key={`empty-${i}`} className="min-h-[90px] sm:min-h-[105px] rounded-2xl bg-transparent" />
               ))}
 
               {/* Real month days */}
@@ -584,20 +740,136 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
                 const isSelected = dateStr === calendarSelectedDate;
                 const isTodayDate = dateStr === today.toISOString().split("T")[0];
                 const dayEntries = entriesByDate[dateStr] || [];
-                const hasPhoto = dayEntries.some((e) => !!e.photoUrl);
+                const { latestPhotoUrl, latestPhotoEntry, photoCount } = getDayPhotoStats(dayEntries);
                 const firstEntry = dayEntries[0];
                 const moodEmoji = firstEntry ? MOOD_EMOJIS[firstEntry.mood] : null;
 
+                const dayChecklist = dailyChecklists[dateStr];
+                const dayFocusTasks = dayChecklist?.priorityTasks || [];
+                const completedFocusTasks = dayFocusTasks.filter((t) => t.completed).length;
+
+                // Case 1: Day has photo(s) attached - Show the latest photo of that day in the cell!
+                if (latestPhotoUrl) {
+                  return (
+                    <div
+                      key={dateStr}
+                      onClick={() => setCalendarSelectedDate(dateStr)}
+                      className={`relative min-h-[90px] sm:min-h-[105px] p-2 rounded-2xl border overflow-hidden transition-all cursor-pointer flex flex-col justify-between group select-none ${
+                        isSelected
+                          ? "ring-3 ring-[#BA4A00] dark:ring-[#F39C12] border-[#BA4A00] dark:border-[#F39C12] shadow-md scale-[1.02] z-10"
+                          : "border-[#E8DFC8] dark:border-[#3E342B] hover:border-[#BA4A00]/70 dark:hover:border-[#F39C12]/70 hover:shadow-sm"
+                      }`}
+                      title={
+                        photoCount > 1
+                          ? `${photoCount} photos on ${dateStr} (showing latest)`
+                          : `Photo moment from ${dateStr}`
+                      }
+                    >
+                      {/* Latest photo as crisp cover image */}
+                      <img
+                        src={latestPhotoUrl}
+                        alt={latestPhotoEntry?.photoCaption || "Latest daily photo"}
+                        className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                        referrerPolicy="no-referrer"
+                        loading="lazy"
+                      />
+
+                      {/* Protective gradient overlay for high text & badge contrast */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-black/55 pointer-events-none transition-opacity group-hover:opacity-90" />
+
+                      {/* Top Bar: Day Number & Photo indicator / Zoom trigger */}
+                      <div className="relative z-10 flex items-center justify-between">
+                        <span
+                          className={`text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center shadow-xs transition-colors ${
+                            isTodayDate
+                              ? "bg-[#BA4A00] text-white ring-2 ring-white/80"
+                              : isSelected
+                              ? "bg-white text-[#BA4A00] font-extrabold ring-1 ring-black/20"
+                              : "bg-black/50 text-white backdrop-blur-xs font-semibold"
+                          }`}
+                        >
+                          {dayNum}
+                        </span>
+
+                        <div className="flex items-center space-x-1">
+                          {/* Key Focus Tag on Photo Cell if exists */}
+                          {dayFocusTasks.length > 0 && (
+                            <span
+                              className={`px-1.5 py-0.5 rounded-full backdrop-blur-xs flex items-center space-x-0.5 text-[9px] font-semibold border ${
+                                completedFocusTasks === dayFocusTasks.length
+                                  ? "bg-emerald-700/85 text-white border-emerald-400/40"
+                                  : "bg-black/60 text-amber-200 border-white/20"
+                              }`}
+                              title={`${completedFocusTasks}/${dayFocusTasks.length} focus tasks done`}
+                            >
+                              <Target className="w-2.5 h-2.5 shrink-0" />
+                              <span>{completedFocusTasks}/{dayFocusTasks.length}</span>
+                            </span>
+                          )}
+
+                          {/* Quick Lightbox Zoom Button on hover */}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setZoomedPhoto({
+                                url: latestPhotoUrl,
+                                caption: latestPhotoEntry?.photoCaption,
+                                date: dateStr,
+                                title: latestPhotoEntry?.title,
+                              });
+                            }}
+                            className="opacity-0 group-hover:opacity-100 p-1 rounded-md bg-black/60 hover:bg-black/80 text-white transition-opacity cursor-pointer"
+                            title="Zoom photo"
+                          >
+                            <Maximize2 className="w-2.5 h-2.5" />
+                          </button>
+
+                          <span
+                            className="px-1.5 py-0.5 rounded-full bg-black/60 text-white backdrop-blur-xs flex items-center space-x-0.5 text-[9px] font-semibold border border-white/20"
+                            title={
+                              photoCount > 1
+                                ? `${photoCount} photos on this day`
+                                : "Daily photo moment"
+                            }
+                          >
+                            <Camera className="w-2.5 h-2.5 text-amber-300 shrink-0" />
+                            {photoCount > 1 && (
+                              <span className="text-amber-200">+{photoCount - 1}</span>
+                            )}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Bottom Bar: Mood & Title Overlay */}
+                      <div className="relative z-10 pt-1">
+                        <div className="flex items-center space-x-1 text-[11px] font-medium text-white truncate drop-shadow-sm">
+                          {moodEmoji && <span className="shrink-0">{moodEmoji}</span>}
+                          <span className="truncate text-[10px] text-white/95 font-medium">
+                            {latestPhotoEntry?.title || firstEntry?.title || "Reflection"}
+                          </span>
+                        </div>
+                        {dayEntries.length > 1 && (
+                          <span className="text-[9px] text-amber-200/90 font-medium block drop-shadow-xs">
+                            {dayEntries.length} reflections
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                }
+
+                // Case 2: Standard Day without photos
                 return (
                   <div
                     key={dateStr}
                     onClick={() => setCalendarSelectedDate(dateStr)}
-                    className={`min-h-[85px] p-2 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between ${
+                    className={`min-h-[90px] sm:min-h-[105px] p-2 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between ${
                       isSelected
-                        ? "bg-[#FAF7F2] border-[#BA4A00] ring-2 ring-[#BA4A00]/20 shadow-xs"
+                        ? "bg-[#FAF7F2] dark:bg-[#2C241E] border-[#BA4A00] dark:border-[#F39C12] ring-2 ring-[#BA4A00]/20 shadow-xs"
                         : dayEntries.length > 0
-                        ? "bg-white border-[#E8DFC8] hover:border-[#C4B5A5]"
-                        : "bg-[#FCFAF7]/50 border-transparent hover:bg-white hover:border-[#E8DFC8]"
+                        ? "bg-white dark:bg-[#241E1A] border-[#E8DFC8] dark:border-[#3E342B] hover:border-[#C4B5A5] dark:hover:border-[#524436]"
+                        : "bg-[#FCFAF7]/50 dark:bg-[#181412]/40 border-transparent hover:bg-white dark:hover:bg-[#241E1A] hover:border-[#E8DFC8] dark:hover:border-[#3E342B]"
                     }`}
                   >
                     <div className="flex items-center justify-between">
@@ -606,15 +878,25 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
                           isTodayDate
                             ? "bg-[#BA4A00] text-white"
                             : isSelected
-                            ? "text-[#BA4A00] font-bold"
-                            : "text-[#4A3B32]"
+                            ? "text-[#BA4A00] dark:text-[#F39C12] font-bold"
+                            : "text-[#4A3B32] dark:text-[#EAE0D5]"
                         }`}
                       >
                         {dayNum}
                       </span>
-                      {hasPhoto && (
-                        <span title="Photo attached">
-                          <Camera className="w-3 h-3 text-[#C0392B]" />
+
+                      {/* Focus tasks badge in standard cell */}
+                      {dayFocusTasks.length > 0 && (
+                        <span
+                          className={`text-[9px] px-1.5 py-0.5 rounded-md inline-flex items-center space-x-1 font-medium ${
+                            completedFocusTasks === dayFocusTasks.length
+                              ? "bg-emerald-100/90 text-emerald-800 border border-emerald-300/60"
+                              : "bg-amber-100/90 text-amber-800 border border-amber-300/60"
+                          }`}
+                          title={`${completedFocusTasks}/${dayFocusTasks.length} focus done`}
+                        >
+                          <Target className="w-2.5 h-2.5 shrink-0" />
+                          <span>{completedFocusTasks}/{dayFocusTasks.length}</span>
                         </span>
                       )}
                     </div>
@@ -623,20 +905,24 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
                     <div className="mt-1">
                       {dayEntries.length > 0 ? (
                         <div className="space-y-0.5">
-                          <div className="flex items-center space-x-1 text-[11px] font-medium text-[#2C241E] truncate">
+                          <div className="flex items-center space-x-1 text-[11px] font-medium text-[#2C241E] dark:text-[#F5EBE1] truncate">
                             <span>{moodEmoji}</span>
-                            <span className="truncate text-[10px] text-[#5D5046]">
+                            <span className="truncate text-[10px] text-[#5D5046] dark:text-[#D5C7B7]">
                               {firstEntry.title || "Reflection"}
                             </span>
                           </div>
                           {dayEntries.length > 1 && (
-                            <span className="text-[9px] text-[#9C8E7E] block">
+                            <span className="text-[9px] text-[#9C8E7E] dark:text-[#A89887] block">
                               +{dayEntries.length - 1} more
                             </span>
                           )}
                         </div>
+                      ) : dayFocusTasks.length > 0 ? (
+                        <span className="text-[10px] text-[#8C7B6C] italic">
+                          {completedFocusTasks === dayFocusTasks.length ? "Focus completed" : "Focus planned"}
+                        </span>
                       ) : (
-                        <span className="text-[10px] text-[#C4B5A5] opacity-0 group-hover:opacity-100">
+                        <span className="text-[10px] text-[#C4B5A5] dark:text-[#524436] opacity-0 group-hover:opacity-100">
                           Empty
                         </span>
                       )}
@@ -648,14 +934,14 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
           </div>
 
           {/* Right Col: Selected Date Drawer */}
-          <div className="bg-white rounded-3xl p-6 border border-[#E8DFC8] shadow-xs flex flex-col justify-between">
+          <div className="bg-white dark:bg-[#1E1915] rounded-3xl p-6 border border-[#E8DFC8] dark:border-[#382E25] shadow-xs flex flex-col justify-between">
             <div>
-              <div className="flex items-center justify-between pb-4 border-b border-[#F0E8D9]">
+              <div className="flex items-center justify-between pb-4 border-b border-[#F0E8D9] dark:border-[#2D241D]">
                 <div>
-                  <span className="text-[10px] uppercase font-bold tracking-widest text-[#BA4A00]">
+                  <span className="text-[10px] uppercase font-bold tracking-widest text-[#BA4A00] dark:text-[#F39C12]">
                     Selected Date
                   </span>
-                  <h3 className="font-display font-bold text-lg text-[#2C241E]">
+                  <h3 className="font-display font-bold text-lg text-[#2C241E] dark:text-[#F5EBE1]">
                     {new Date(calendarSelectedDate + "T12:00:00Z").toLocaleDateString("en-US", {
                       weekday: "long",
                       month: "short",
@@ -666,22 +952,155 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
                 </div>
                 <button
                   onClick={() => onWriteForDate(calendarSelectedDate)}
-                  className="px-3 py-1.5 rounded-xl bg-[#2C241E] text-white text-xs font-semibold hover:bg-[#4A3B32] transition-colors flex items-center space-x-1"
+                  className="px-3 py-1.5 rounded-xl bg-[#2C241E] dark:bg-[#BA4A00] text-white text-xs font-semibold hover:bg-[#4A3B32] dark:hover:bg-[#A04000] transition-colors flex items-center space-x-1 cursor-pointer"
                 >
                   <Edit3 className="w-3 h-3" />
                   <span>Write For Date</span>
                 </button>
               </div>
 
+              {/* Key Focus Section for Selected Date */}
+              <div className="mt-5 p-4 rounded-2xl bg-[#FAF7F2] dark:bg-[#241E1A] border border-[#E8DFC8] dark:border-[#3E342B] space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <Target className="w-4 h-4 text-[#BA4A00] dark:text-[#F39C12]" />
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-[#935116] dark:text-[#F39C12]">
+                      Key Focus
+                    </h4>
+                    {selectedPriorityTasks.length > 0 && (
+                      <span className="text-[11px] font-semibold text-[#7E6E5F] dark:text-[#A89887] bg-white dark:bg-[#1E1915] px-2 py-0.5 rounded-full border border-[#E8DFC8] dark:border-[#3E342B]">
+                        {selectedPriorityTasks.filter((t) => t.completed).length} / {selectedPriorityTasks.length} done
+                      </span>
+                    )}
+                  </div>
+
+                  {!isAddingFocus && onUpdateDailyChecklist && (
+                    <button
+                      type="button"
+                      onClick={() => setIsAddingFocus(true)}
+                      className="flex items-center space-x-1 text-xs font-semibold text-[#BA4A00] dark:text-[#F39C12] hover:underline cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Add Focus</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* Add Focus Input Form */}
+                {isAddingFocus && (
+                  <form onSubmit={handleAddFocusTask} className="flex gap-1.5 pt-1">
+                    <input
+                      type="text"
+                      value={newFocusText}
+                      onChange={(e) => setNewFocusText(e.target.value)}
+                      placeholder="e.g. Finish writing, 45m deep focus..."
+                      className="flex-1 px-3 py-1.5 rounded-xl border border-[#E8DFC8] dark:border-[#3E342B] text-xs bg-white dark:bg-[#1A1613] focus:outline-none focus:ring-1 focus:ring-[#BA4A00] text-[#2C241E] dark:text-[#F5EBE1]"
+                      autoFocus
+                      maxLength={80}
+                    />
+                    <button
+                      type="submit"
+                      disabled={!newFocusText.trim()}
+                      className="px-3 py-1.5 bg-[#BA4A00] text-white rounded-xl text-xs font-semibold hover:bg-[#A04000] disabled:opacity-50 transition-colors cursor-pointer"
+                    >
+                      Add
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsAddingFocus(false);
+                        setNewFocusText("");
+                      }}
+                      className="px-2 py-1.5 text-xs text-[#7E6E5F] hover:bg-[#E8DFC8]/50 rounded-xl transition-colors cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                  </form>
+                )}
+
+                {/* Tasks List */}
+                {selectedPriorityTasks.length === 0 && !isAddingFocus ? (
+                  <div
+                    onClick={() => onUpdateDailyChecklist && setIsAddingFocus(true)}
+                    className="text-center py-3 bg-white/70 dark:bg-[#1A1613]/50 rounded-xl border border-dashed border-[#E8DFC8] dark:border-[#3E342B] cursor-pointer hover:bg-white dark:hover:bg-[#1A1613] transition-colors"
+                  >
+                    <p className="text-xs text-[#7E6E5F] dark:text-[#A89887]">No key focus items set for this day.</p>
+                    {onUpdateDailyChecklist && (
+                      <span className="text-xs text-[#BA4A00] dark:text-[#F39C12] font-semibold mt-0.5 inline-flex items-center space-x-1">
+                        <Plus className="w-3 h-3" />
+                        <span>Add a focus priority</span>
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                    {selectedPriorityTasks.map((task) => (
+                      <div
+                        key={task.id}
+                        className={`flex items-center justify-between p-2.5 rounded-xl border transition-all ${
+                          task.completed
+                            ? "bg-[#F5EBE1]/60 dark:bg-[#1E1915]/60 border-[#D5C9B3] dark:border-[#382E25] text-[#7E6E5F]"
+                            : "bg-white dark:bg-[#1A1613] border-[#E8DFC8] dark:border-[#3E342B] text-[#2C241E] dark:text-[#F5EBE1] shadow-2xs"
+                        }`}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => handleToggleFocusTask(task.id)}
+                          className="flex items-center space-x-2.5 flex-1 min-w-0 mr-2 text-left cursor-pointer select-none group/item"
+                        >
+                          <div
+                            className={`w-5 h-5 rounded-md flex items-center justify-center transition-all shrink-0 ${
+                              task.completed
+                                ? "bg-[#BA4A00] text-white"
+                                : "border border-[#C5BAA5] dark:border-[#524436] bg-[#FAF7F2] dark:bg-[#241E1A] group-hover/item:border-[#BA4A00]"
+                            }`}
+                          >
+                            {task.completed && <Check className="w-3.5 h-3.5" />}
+                          </div>
+                          <span
+                            className={`text-xs break-words ${
+                              task.completed
+                                ? "line-through text-[#8C7B6C] dark:text-[#7A6A5C]"
+                                : "font-medium text-[#2C241E] dark:text-[#F5EBE1]"
+                            }`}
+                          >
+                            {task.text}
+                          </span>
+                        </button>
+
+                        {onUpdateDailyChecklist && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteFocusTask(task.id)}
+                            className="p-1 text-[#A89887] hover:text-[#BA4A00] dark:hover:text-[#F39C12] hover:bg-[#F5EBE1] dark:hover:bg-[#2E241E] rounded-lg transition-colors shrink-0 cursor-pointer"
+                            title="Remove focus item"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Reflections section header */}
+              <div className="mt-6 flex items-center justify-between pb-1 border-b border-[#F0E8D9] dark:border-[#2D241D]">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-[#7E6E5F] dark:text-[#A89887] flex items-center space-x-1.5">
+                  <Feather className="w-3.5 h-3.5 text-[#BA4A00] dark:text-[#F39C12]" />
+                  <span>Reflections ({(entriesByDate[calendarSelectedDate] || []).length})</span>
+                </h4>
+              </div>
+
               {/* Entries for this date */}
-              <div className="mt-5 space-y-4">
+              <div className="mt-4 space-y-4">
                 {(entriesByDate[calendarSelectedDate] || []).length === 0 ? (
-                  <div className="text-center py-8 text-xs text-[#7E6E5F]">
-                    <Feather className="w-8 h-8 mx-auto text-[#D5C4A1] mb-2" />
+                  <div className="text-center py-8 text-xs text-[#7E6E5F] dark:text-[#A89887]">
+                    <Feather className="w-8 h-8 mx-auto text-[#D5C4A1] dark:text-[#524436] mb-2" />
                     <p>No reflections recorded for this day yet.</p>
                     <button
                       onClick={() => onWriteForDate(calendarSelectedDate)}
-                      className="mt-3 text-xs font-semibold text-[#BA4A00] underline"
+                      className="mt-3 text-xs font-semibold text-[#BA4A00] dark:text-[#F39C12] underline cursor-pointer"
                     >
                       Create reflection for this date
                     </button>
@@ -690,32 +1109,61 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
                   entriesByDate[calendarSelectedDate].map((entry) => (
                     <div
                       key={entry.id}
-                      className="p-4 rounded-2xl bg-[#FAF7F2] border border-[#E8DFC8] space-y-2.5"
+                      className="p-4 rounded-2xl bg-[#FAF7F2] dark:bg-[#241E1A] border border-[#E8DFC8] dark:border-[#3E342B] space-y-2.5 transition-colors"
                     >
                       {entry.photoUrl && (
-                        <img
-                          src={entry.photoUrl}
-                          alt="Day photo"
-                          className="w-full h-32 object-cover rounded-xl"
-                        />
+                        <div
+                          className="relative rounded-xl overflow-hidden group/pic cursor-pointer"
+                          onClick={() =>
+                            setZoomedPhoto({
+                              url: entry.photoUrl!,
+                              caption: entry.photoCaption,
+                              date: entry.date,
+                              title: entry.title,
+                            })
+                          }
+                        >
+                          <img
+                            src={entry.photoUrl}
+                            alt={entry.photoCaption || "Entry photo"}
+                            className="w-full h-32 object-cover rounded-xl transition-transform duration-300 group-hover/pic:scale-105"
+                            referrerPolicy="no-referrer"
+                          />
+                          <div className="absolute inset-0 bg-black/30 opacity-0 group-hover/pic:opacity-100 transition-opacity flex items-center justify-center">
+                            <span className="px-2.5 py-1 rounded-lg bg-black/60 text-white text-[10px] font-semibold flex items-center space-x-1 backdrop-blur-xs">
+                              <Maximize2 className="w-3 h-3" />
+                              <span>View Photo</span>
+                            </span>
+                          </div>
+                        </div>
                       )}
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="font-semibold text-[#2C241E] flex items-center space-x-1">
-                          <span>{MOOD_EMOJIS[entry.mood]}</span>
-                          <span className="capitalize">{entry.mood}</span>
-                        </span>
-                        <span className="text-[#9C8E7E]">{entry.wordCount} words</span>
+                      <div className="flex flex-wrap items-center justify-between text-xs gap-1">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="font-semibold text-[#2C241E] dark:text-[#F5EBE1] flex items-center space-x-1">
+                            <span>{MOOD_EMOJIS[entry.mood.toLowerCase()] || "🌿"}</span>
+                            <span className="capitalize">{entry.mood}</span>
+                          </span>
+                          {entry.customFeelings && entry.customFeelings.map((cf) => (
+                            <span
+                              key={cf}
+                              className="px-2 py-0.5 rounded-full bg-[#F5EBE1] dark:bg-[#2A221C] text-[#935116] dark:text-[#E59866] border border-[#E8DFC8] dark:border-[#3E342B] text-[10px] font-medium"
+                            >
+                              ✨ {cf}
+                            </span>
+                          ))}
+                        </div>
+                        <span className="text-[#9C8E7E] dark:text-[#A89887]">{entry.wordCount} words</span>
                       </div>
-                      <h4 className="font-display font-bold text-sm text-[#2C241E]">
+                      <h4 className="font-display font-bold text-sm text-[#2C241E] dark:text-[#F5EBE1]">
                         {entry.title || "Reflective Musings"}
                       </h4>
-                      <p className="text-xs text-[#5D5046] line-clamp-3 font-serif">
+                      <p className="text-xs text-[#5D5046] dark:text-[#D5C7B7] line-clamp-3 font-serif">
                         {entry.initialThought}
                       </p>
                       <div className="pt-2 flex items-center justify-end space-x-2">
                         <button
                           onClick={() => onSelectEntry(entry)}
-                          className="px-3 py-1 bg-white border border-[#E5DAC6] hover:bg-[#F5EBE1] text-[#BA4A00] text-xs font-semibold rounded-lg"
+                          className="px-3 py-1 bg-white dark:bg-[#1A1613] border border-[#E5DAC6] dark:border-[#3E342B] hover:bg-[#F5EBE1] dark:hover:bg-[#2E241E] text-[#BA4A00] dark:text-[#F39C12] text-xs font-semibold rounded-lg transition-colors cursor-pointer"
                         >
                           Open in Editor
                         </button>

@@ -25,6 +25,9 @@ import {
   HabitTemplate,
   DailyChecklist,
   UserMilestone,
+  AppSettings,
+  AppTheme,
+  WisdomStream,
 } from "./types";
 import { Navbar } from "./components/Navbar";
 import { LandingHero } from "./components/LandingHero";
@@ -33,11 +36,64 @@ import { MemoriesView } from "./components/MemoriesView";
 import { HabitManagerModal } from "./components/HabitManagerModal";
 import { InsightsMilestonesTab, BADGE_DEFINITIONS } from "./components/InsightsMilestonesTab";
 import { MilestoneCelebrationModal } from "./components/MilestoneCelebrationModal";
+import { SettingsModal } from "./components/SettingsModal";
 import { ShieldCheck, AlertTriangle, CheckCircle2, Feather } from "lucide-react";
 
 export default function App() {
   // Navigation State: 3 Streamlined Core Tabs
   const [activeTab, setActiveTab] = useState<"today" | "memories" | "insights">("today");
+
+  // App Settings State (Theme, Wisdom lens, Hardware, Habits & Milestones)
+  const [settings, setSettings] = useState<AppSettings>(() => {
+    try {
+      const saved = localStorage.getItem("warmth_app_settings");
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch {
+      // ignore
+    }
+    return {
+      theme: "system",
+      wisdomStream: (localStorage.getItem("warmth_wisdom_stream") as WisdomStream) || "all",
+      enableCamera: true,
+      enableMicrophone: true,
+      autoPlayWisdomAudio: true,
+    };
+  });
+
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [settingsInitialSection, setSettingsInitialSection] = useState<
+    "habits" | "wisdom" | "hardware" | "milestones"
+  >("habits");
+
+  const openSettings = (
+    section: "habits" | "wisdom" | "hardware" | "milestones"
+  ) => {
+    setSettingsInitialSection(section);
+    setIsSettingsOpen(true);
+  };
+
+  // Update App Settings
+  const handleUpdateSettings = (newSettings: Partial<AppSettings>) => {
+    setSettings((prev) => {
+      const updated = { ...prev, ...newSettings };
+      try {
+        localStorage.setItem("warmth_app_settings", JSON.stringify(updated));
+        if (newSettings.wisdomStream) {
+          localStorage.setItem("warmth_wisdom_stream", newSettings.wisdomStream);
+        }
+      } catch {
+        // ignore
+      }
+      return updated;
+    });
+  };
+
+  // Ensure standard light appearance
+  useEffect(() => {
+    document.documentElement.classList.remove("dark");
+  }, []);
 
   // Firebase Auth & Database Connection State
   const [user, setUser] = useState<User | null>(null);
@@ -333,7 +389,7 @@ export default function App() {
             date: todayDateStr,
             photoUrl: allEntries[0]?.photoUrl,
             photoCaption: allEntries[0]?.photoCaption,
-            mood: allEntries[0]?.mood || "peaceful",
+            mood: allEntries[0]?.mood || "calm",
             journalExcerpt: allEntries[0]?.summary || allEntries[0]?.initialThought.slice(0, 100) || "Consistent practice",
             habitsCompleted: todayCl?.habits?.filter((h) => h.completed).map((h) => h.title) || [],
             tasksCompleted: todayCl?.priorityTasks?.filter((t) => t.completed).map((t) => t.text) || [],
@@ -388,37 +444,54 @@ export default function App() {
     }
   };
 
-  // Save Entry (isolated to user in Firestore, fallback to local storage)
+  // Save Entry (strictly ONE entry per day, isolated to user in Firestore)
   const handleSaveEntry = async (entryData: Partial<JournalEntry>): Promise<string | void> => {
     const todayStr = new Date().toISOString().split("T")[0];
+    const targetDate = entryData.date || todayStr;
+
+    // Enforce one reflection entry per calendar day
+    const existingEntryByDate = entries.find((e) => e.date === targetDate);
+    const existingEntryById = entryData.id ? entries.find((e) => e.id === entryData.id) : undefined;
+    const existingEntry = existingEntryByDate || existingEntryById;
+
+    const entryId = existingEntry ? existingEntry.id : (entryData.id || "entry_" + Date.now());
+    const createdAt = existingEntry?.createdAt || entryData.createdAt || new Date().toISOString();
+
     const newEntry: JournalEntry = {
-      id: entryData.id || "entry_" + Date.now(),
+      id: entryId,
       userId: user ? user.uid : "guest_user",
       title: entryData.title || "Reflective Musings",
-      date: entryData.date || todayStr,
-      mood: entryData.mood || "peaceful",
-      tags: entryData.tags || ["reflection"],
+      date: targetDate,
+      mood: entryData.mood || "calm",
+      customFeelings: entryData.customFeelings || existingEntry?.customFeelings || [],
+      tags: entryData.tags || existingEntry?.tags || ["reflection"],
       initialThought: entryData.initialThought || "",
       summary: entryData.summary || "",
       insights: entryData.insights || [],
       reflectionType: entryData.reflectionType || "daily_reflection",
       messages: entryData.messages || [],
-      favorite: entryData.favorite || false,
+      favorite: entryData.favorite ?? existingEntry?.favorite ?? false,
       wordCount: entryData.wordCount || 0,
-      photoUrl: entryData.photoUrl || undefined,
-      photoCaption: entryData.photoCaption || undefined,
+      photoUrl: entryData.photoUrl !== undefined ? entryData.photoUrl : existingEntry?.photoUrl,
+      photoCaption: entryData.photoCaption !== undefined ? entryData.photoCaption : existingEntry?.photoCaption,
       hasVoiceNote: entryData.hasVoiceNote || false,
-      createdAt: entryData.createdAt || new Date().toISOString(),
+      wisdom: entryData.wisdom || existingEntry?.wisdom,
+      createdAt: createdAt,
       updatedAt: new Date().toISOString(),
     };
 
-    const updated = [newEntry, ...entries.filter((e) => e.id !== newEntry.id)];
+    // Strictly one entry per day in memory
+    const updated = [
+      newEntry,
+      ...entries.filter((e) => e.date !== targetDate && e.id !== entryId),
+    ];
     setEntries(updated);
+    setCurrentEditingEntry(newEntry);
 
     if (user) {
       try {
         const savedId = await saveJournalEntry(user.uid, newEntry);
-        showToast("Reflection saved to your private Cloud Firestore!");
+        showToast(`Journaling & AI reflections saved for ${targetDate}!`);
         evaluateAndAwardMilestones(dailyChecklists, updated);
         return savedId;
       } catch (err: any) {
@@ -429,7 +502,7 @@ export default function App() {
     } else {
       localStorage.setItem("warmth_guest_entries", JSON.stringify(updated));
       evaluateAndAwardMilestones(dailyChecklists, updated);
-      showToast("Saved to local session. Sign in to sync across devices!");
+      showToast(`Journaling & AI reflections saved for ${targetDate}!`);
     }
   };
 
@@ -561,50 +634,165 @@ export default function App() {
     showToast("Habits reset to 6 mindful presets.");
   };
 
-  // Start a fresh new entry
-  const handleNewEntry = () => {
-    setCurrentEditingEntry(null);
+  // Add Custom Milestone
+  const handleAddCustomMilestone = async (data: {
+    title: string;
+    description: string;
+    category: string;
+    icon: string;
+  }) => {
+    const todayStr = new Date().toISOString().split("T")[0];
+    const newMilestone: UserMilestone = {
+      id: "custom_milestone_" + Date.now(),
+      userId: user ? user.uid : "guest_user",
+      badgeKey: "custom_" + Date.now(),
+      title: data.title,
+      description: data.description,
+      icon: data.icon || "Sparkles",
+      unlockedAt: new Date().toISOString(),
+      isCustom: true,
+      category: data.category,
+      postcardData: {
+        date: todayStr,
+        mood: "inspired",
+        journalExcerpt: data.description,
+        habitsCompleted: [],
+        tasksCompleted: [],
+      },
+    };
+
+    const updated = [newMilestone, ...milestones];
+    setMilestones(updated);
+
+    if (user) {
+      try {
+        await saveMilestone(user.uid, newMilestone);
+        showToast(`Created custom milestone: "${data.title}"! 🎉`);
+      } catch (err) {
+        console.error("Failed to save custom milestone:", err);
+      }
+    } else {
+      localStorage.setItem("warmth_guest_milestones", JSON.stringify(updated));
+      showToast(`Created custom milestone: "${data.title}"! 🎉`);
+    }
+
+    setCelebrationMilestone(newMilestone);
+  };
+
+  // Delete Custom Milestone
+  const handleDeleteCustomMilestone = async (milestoneId: string) => {
+    const updated = milestones.filter((m) => m.id !== milestoneId);
+    setMilestones(updated);
+    if (!user) {
+      localStorage.setItem("warmth_guest_milestones", JSON.stringify(updated));
+    }
+    showToast("Milestone removed.");
+  };
+
+  // Navigate to Today page with today's date (used when switching to Today from another tab or clicking New Entry from other views)
+  const handleNavigateToToday = () => {
+    const todayStr = new Date().toISOString().split("T")[0];
+    const existingTodayEntry = entries.find((e) => e.date === todayStr);
+    if (existingTodayEntry) {
+      setCurrentEditingEntry(existingTodayEntry);
+    } else {
+      const freshTodayEntry: JournalEntry = {
+        id: "entry_" + Date.now(),
+        userId: user ? user.uid : "guest_user",
+        title: "",
+        date: todayStr,
+        mood: "calm",
+        tags: ["reflection"],
+        initialThought: "",
+        summary: "",
+        insights: [],
+        reflectionType: "daily_reflection",
+        messages: [],
+        favorite: false,
+        wordCount: 0,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      setCurrentEditingEntry(freshTodayEntry);
+    }
     setActiveTab("today");
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+  };
+
+  // Start a fresh new entry from other pages
+  const handleNewEntry = () => {
+    handleNavigateToToday();
   };
 
   // Open existing entry in editor
   const handleSelectEntry = (entry: JournalEntry) => {
     setCurrentEditingEntry(entry);
     setActiveTab("today");
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
   };
 
-  // Triggered from Calendar / Memories: Write for a specific date
+  // Triggered from Calendar / Memories / Editor date change: Select or write for a specific date
   const handleWriteForDate = (dateString: string) => {
-    const freshEntryForDate: JournalEntry = {
-      id: "entry_" + Date.now(),
-      userId: user ? user.uid : "guest_user",
-      title: "",
-      date: dateString,
-      mood: "peaceful",
-      tags: ["reflection"],
-      initialThought: "",
-      summary: "",
-      insights: [],
-      reflectionType: "daily_reflection",
-      messages: [],
-      favorite: false,
-      wordCount: 0,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    setCurrentEditingEntry(freshEntryForDate);
+    const existingEntry = entries.find((e) => e.date === dateString);
+    if (existingEntry) {
+      setCurrentEditingEntry(existingEntry);
+    } else {
+      const freshEntryForDate: JournalEntry = {
+        id: "entry_" + Date.now(),
+        userId: user ? user.uid : "guest_user",
+        title: "",
+        date: dateString,
+        mood: "calm",
+        tags: ["reflection"],
+        initialThought: "",
+        summary: "",
+        insights: [],
+        reflectionType: "daily_reflection",
+        messages: [],
+        favorite: false,
+        wordCount: 0,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      setCurrentEditingEntry(freshEntryForDate);
+    }
     setActiveTab("today");
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+  };
+
+  // Unsaved changes tracking when navigating away from today tab
+  const [hasUnsavedJournalChanges, setHasUnsavedJournalChanges] = useState(false);
+  const [pendingTabSwitch, setPendingTabSwitch] = useState<"today" | "memories" | "insights" | null>(null);
+  const [isUnsavedTabModalOpen, setIsUnsavedTabModalOpen] = useState(false);
+
+  const handleTabChange = (targetTab: "today" | "memories" | "insights") => {
+    if (activeTab === "today" && hasUnsavedJournalChanges && targetTab !== "today") {
+      setPendingTabSwitch(targetTab);
+      setIsUnsavedTabModalOpen(true);
+      return;
+    }
+    executeTabSwitch(targetTab);
+  };
+
+  const executeTabSwitch = (targetTab: "today" | "memories" | "insights") => {
+    if (targetTab === "memories") setSelectedFilterDate(null);
+    if (targetTab === "today") {
+      if (activeTab !== "today") {
+        handleNavigateToToday();
+        return;
+      }
+    }
+    setActiveTab(targetTab);
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
   };
 
   return (
-    <div className="min-h-screen bg-[#FAF7F2] text-[#2C241E] flex flex-col selection:bg-[#F3D5B5] selection:text-[#4A2E18]">
+    // Updated main container with dark theme support
+    <div className="min-h-screen bg-[#FAF7F2] dark:bg-[#120F0D] text-[#2C241E] dark:text-[#F5EBE1] flex flex-col selection:bg-[#F3D5B5] selection:text-[#4A2E18] transition-colors duration-300">
       {/* Top Navigation */}
       <Navbar
         activeTab={activeTab}
-        setActiveTab={(tab) => {
-          if (tab === "memories") setSelectedFilterDate(null);
-          setActiveTab(tab);
-        }}
+        setActiveTab={handleTabChange}
         user={user}
         isAuthLoading={isAuthLoading}
         onSignIn={handleSignIn}
@@ -613,23 +801,24 @@ export default function App() {
         serverStatus={serverStatus}
         telemetry={telemetry}
         entriesCount={entries.length}
-        onOpenHabits={() => setIsHabitManagerOpen(true)}
+        onOpenHabits={() => openSettings("habits")}
+        onOpenSettings={() => openSettings("habits")}
       />
 
-      {/* Notification Toast */}
+      {/* Notification Toast - Updated with dark theme support */}
       {notification && (
         <div className="fixed bottom-5 right-5 z-50 animate-slide-up">
           <div
-            className={`px-4 py-3 rounded-xl shadow-lg border text-xs font-semibold flex items-center space-x-2 ${
+            className={`px-4 py-3 rounded-xl shadow-lg border text-xs font-semibold flex items-center space-x-2 transition-colors duration-300 ${
               notification.type === "success"
-                ? "bg-white text-[#2C241E] border-[#E8DFC8] border-l-4 border-l-[#E67E22]"
-                : "bg-red-50 text-red-900 border-red-200 border-l-4 border-l-red-600"
+                ? "bg-white dark:bg-[#2C241E] text-[#2C241E] dark:text-[#F5EBE1] border-[#E8DFC8] dark:border-[#3E342B] border-l-4 border-l-[#E67E22]"
+                : "bg-red-50 dark:bg-red-950/80 text-red-900 dark:text-red-200 border-red-200 dark:border-red-800 border-l-4 border-l-red-600"
             }`}
           >
             {notification.type === "success" ? (
               <CheckCircle2 className="w-4 h-4 text-[#E67E22] shrink-0" />
             ) : (
-              <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+              <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0" />
             )}
             <span>{notification.message}</span>
           </div>
@@ -648,7 +837,7 @@ export default function App() {
                 userId: "guest",
                 title: "My First Warmth Reflection",
                 date: new Date().toISOString().split("T")[0],
-                mood: "peaceful",
+                mood: "calm",
                 tags: ["first-reflection"],
                 initialThought: "I am taking a moment to pause and listen to my own thoughts today...",
                 summary: "",
@@ -672,15 +861,22 @@ export default function App() {
                 onNewEntry={handleNewEntry}
                 onDeleteEntry={handleDeleteEntry}
                 telemetry={telemetry}
+                entries={entries}
+                onChangeDate={handleWriteForDate}
                 dailyChecklist={currentChecklist}
                 tomorrowChecklist={tomorrowChecklist}
+                dailyChecklists={dailyChecklists}
                 habitTemplates={habitTemplates}
                 onUpdateChecklist={handleUpdateDailyChecklist}
                 onUpdateTomorrowChecklist={handleUpdateDailyChecklist}
-                onOpenHabitManager={() => setIsHabitManagerOpen(true)}
+                onOpenHabitManager={() => openSettings("habits")}
                 streakDays={streakDays}
                 bookmarkedWisdomIds={bookmarkedWisdomIds}
                 onToggleWisdomBookmark={handleToggleWisdomBookmark}
+                defaultWisdomStream={settings.wisdomStream}
+                enableCamera={settings.enableCamera}
+                enableMicrophone={settings.enableMicrophone}
+                onSaveEnabledChange={setHasUnsavedJournalChanges}
               />
             )}
 
@@ -692,6 +888,9 @@ export default function App() {
                 onDeleteEntry={handleDeleteEntry}
                 onToggleFavorite={handleToggleFavorite}
                 onNewEntry={handleNewEntry}
+                dailyChecklists={dailyChecklists}
+                onUpdateDailyChecklist={handleUpdateDailyChecklist}
+                userId={user?.uid}
               />
             )}
 
@@ -702,12 +901,31 @@ export default function App() {
                 dailyChecklists={dailyChecklists}
                 milestones={milestones}
                 onSelectEntryByDate={(dateStr) => handleWriteForDate(dateStr)}
-                onOpenHabitManager={() => setIsHabitManagerOpen(true)}
+                onOpenHabitManager={() => openSettings("habits")}
+                onOpenSettings={() => openSettings("habits")}
+                onOpenMileStones={() => openSettings("milestones")}
               />
             )}
           </>
         )}
       </main>
+
+      {/* Sanctuary Settings Modal */}
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        settings={settings}
+        onUpdateSettings={handleUpdateSettings}
+        user={user}
+        habitTemplates={habitTemplates}
+        onSaveHabitTemplate={handleSaveHabitTemplate}
+        onDeleteHabitTemplate={handleDeleteHabitTemplate}
+        onResetHabitDefaults={handleResetHabitDefaults}
+        milestones={milestones}
+        onAddCustomMilestone={handleAddCustomMilestone}
+        onDeleteCustomMilestone={handleDeleteCustomMilestone}
+        initialSection={settingsInitialSection}
+      />
 
       {/* Global Habit Manager Modal */}
       <HabitManagerModal
@@ -729,25 +947,68 @@ export default function App() {
         }}
       />
 
-      {/* Footer */}
-      <footer className="border-t border-[#E8DFC8] py-6 bg-[#FAF7F2] text-xs text-[#7E6E5F]">
+      {/* Unsaved Tab Switch Warning Dialog */}
+      {isUnsavedTabModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
+          <div className="bg-white dark:bg-[#2C241E] rounded-2xl p-6 max-w-md w-full border border-[#E8DFC8] dark:border-[#4A3B32] shadow-xl space-y-4 animate-scale-in">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-950/60 text-[#BA4A00] flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-display font-bold text-base text-[#2C241E] dark:text-[#FAF7F2]">
+                  Unsaved Changes
+                </h3>
+                <p className="text-xs text-[#7E6E5F] dark:text-[#A8988A]">
+                  You have unsaved writing or AI reflections on today's entry.
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-[#5A4B3E] dark:text-[#D5C7B7] leading-relaxed">
+              Leaving will discard your recent edits. Would you like to stay to save your entry, or discard and continue?
+            </p>
+
+            <div className="flex items-center justify-end space-x-2 pt-2 border-t border-[#E8DFC8] dark:border-[#4A3B32]">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsUnsavedTabModalOpen(false);
+                  setPendingTabSwitch(null);
+                }}
+                className="px-4 py-2 text-xs font-semibold rounded-xl bg-[#FAF7F2] dark:bg-[#3A2F25] text-[#2C241E] dark:text-[#FAF7F2] border border-[#E8DFC8] dark:border-[#4A3B32] hover:bg-[#F5EBE1] cursor-pointer"
+              >
+                Stay on Journal
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsUnsavedTabModalOpen(false);
+                  setHasUnsavedJournalChanges(false);
+                  if (pendingTabSwitch) {
+                    executeTabSwitch(pendingTabSwitch);
+                    setPendingTabSwitch(null);
+                  }
+                }}
+                className="px-4 py-2 text-xs font-semibold rounded-xl bg-red-600 hover:bg-red-700 text-white cursor-pointer shadow-xs"
+              >
+                Discard & Leave
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Footer - Updated with dark theme support */}
+      <footer className="border-t border-[#E8DFC8] dark:border-[#3E342B] py-6 bg-[#FAF7F2] dark:bg-[#181412] text-xs text-[#7E6E5F] dark:text-[#A89887] transition-colors duration-300">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
           <div className="flex items-center space-x-2">
-            <Feather className="w-4 h-4 text-[#BA4A00]" />
-            <span className="font-display font-semibold text-[#2C241E]">
+            <Feather className="w-4 h-4 text-[#BA4A00] dark:text-[#F39C12]" />
+            <span className="font-display font-semibold text-[#2C241E] dark:text-[#F5EBE1]">
               Warmth AI Journal
             </span>
-            <span>·</span>
-            <span>A gentle lens for your thoughts & days</span>
-          </div>
-
-          <div className="flex items-center space-x-4 text-[11px]">
-            <span className="flex items-center space-x-1 text-emerald-700">
-              <ShieldCheck className="w-3.5 h-3.5" />
-              <span>Cloud Firestore Hardened Security</span>
-            </span>
-            <span>·</span>
-            <span>Habit & Intention Sanctuary Active</span>
+            <span className="text-[#7E6E5F] dark:text-[#A89887]">·</span>
+            <span className="text-[#7E6E5F] dark:text-[#A89887]">A gentle lens for your thoughts & days</span>
           </div>
         </div>
       </footer>

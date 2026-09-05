@@ -37,33 +37,40 @@ const STREAM_LABELS: Record<
   WisdomStream,
   { label: string; icon: string; bg: string; text: string; border: string }
 > = {
+  all: {
+    label: "All Traditions",
+    icon: "✨",
+    bg: "bg-amber-50 dark:bg-amber-950/40",
+    text: "text-amber-900 dark:text-amber-200",
+    border: "border-amber-200 dark:border-amber-800",
+  },
   gita: {
     label: "Bhagavad Gita",
     icon: "🪔",
-    bg: "bg-amber-50",
-    text: "text-amber-900",
-    border: "border-amber-200",
+    bg: "bg-amber-50 dark:bg-amber-950/40",
+    text: "text-amber-900 dark:text-amber-200",
+    border: "border-amber-200 dark:border-amber-800",
   },
   stoic: {
     label: "Stoic Philosophy",
     icon: "🏛️",
-    bg: "bg-stone-50",
-    text: "text-stone-900",
-    border: "border-stone-200",
+    bg: "bg-stone-50 dark:bg-stone-900/60",
+    text: "text-stone-900 dark:text-stone-200",
+    border: "border-stone-200 dark:border-stone-800",
   },
   buddhism: {
     label: "Buddhist Mindfulness",
     icon: "☸️",
-    bg: "bg-emerald-50",
-    text: "text-emerald-900",
-    border: "border-emerald-200",
+    bg: "bg-emerald-50 dark:bg-emerald-950/40",
+    text: "text-emerald-900 dark:text-emerald-200",
+    border: "border-emerald-200 dark:border-emerald-800",
   },
   psychology: {
     label: "Psychological Reframing",
     icon: "🧠",
-    bg: "bg-cyan-50",
-    text: "text-cyan-900",
-    border: "border-cyan-200",
+    bg: "bg-cyan-50 dark:bg-cyan-950/40",
+    text: "text-cyan-900 dark:text-cyan-200",
+    border: "border-cyan-200 dark:border-cyan-800",
   },
 };
 
@@ -102,7 +109,7 @@ export const DailyWisdomCard: React.FC<DailyWisdomCardProps> = ({
     if (wisdom.transliteration) {
       textToCopy += `(${wisdom.transliteration})\n\n`;
     }
-    textToCopy += `"${wisdom.translation}"\n\nWhy this helps today: ${wisdom.contextBridge}`;
+    textToCopy += `"${wisdom.translation}"\n\nReflection: ${wisdom.contextBridge}`;
 
     navigator.clipboard.writeText(textToCopy);
     setCopied(true);
@@ -305,25 +312,19 @@ export const DailyWisdomCard: React.FC<DailyWisdomCardProps> = ({
           </div>
         )}
 
-        {/* Translation Quote */}
-        <div className="space-y-1">
-          <span className="text-[10px] uppercase font-bold tracking-wider text-[#7E6E5F]">
-            Teaching & Translation:
+        {/* User Transparency Context Badge: clearly explaining why this quote was chosen */}
+        <div className="flex flex-wrap items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50/90 border border-amber-200/80 text-[11px] text-[#8C4A16] font-medium shadow-2xs">
+          <Sparkles className="w-3.5 h-3.5 text-[#E67E22] shrink-0" />
+          <span>
+            Reflected for <strong>{currentMood || "today's reflection"}</strong> · {wisdom.contextBridge}
           </span>
-          <blockquote className="text-sm sm:text-base font-serif italic text-[#2C241E] leading-relaxed pl-3 border-l-2 border-[#D35400]">
-            "{wisdom.translation}"
-          </blockquote>
         </div>
 
-        {/* Actionable Context Bridge: "Why This Helps Today" */}
-        <div className="bg-amber-50/70 border border-amber-200/80 rounded-2xl p-3.5 sm:p-4 space-y-1">
-          <div className="flex items-center space-x-1.5 text-[11px] font-bold text-amber-950 uppercase tracking-wider">
-            <Sparkles className="w-3.5 h-3.5 text-[#D35400]" />
-            <span>Why this helps today:</span>
-          </div>
-          <p className="text-xs text-[#4A3B32] font-journal leading-relaxed">
-            {wisdom.contextBridge}
-          </p>
+        {/* Translation Quote */}
+        <div className="space-y-1">
+          <blockquote className="text-sm sm:text-base font-serif italic text-[#2C241E] leading-relaxed pl-3.5 border-l-2 border-[#D35400] py-0.5">
+            "{wisdom.translation}"
+          </blockquote>
         </div>
 
         {/* Footer Meta & Treasury Link */}
