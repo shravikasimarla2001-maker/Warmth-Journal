@@ -28,6 +28,7 @@ import {
   AppSettings,
   AppTheme,
   WisdomStream,
+  DailyWisdomItem,
 } from "./types";
 import { Navbar } from "./components/Navbar";
 import { LandingHero } from "./components/LandingHero";
@@ -168,6 +169,42 @@ export default function App() {
       );
       return updated;
     });
+  };
+
+  // Anchor Today's Journal reflection with a selected Wisdom verse
+  const handleReflectWithWisdom = (item: DailyWisdomItem) => {
+    setActiveTab("today");
+    const wisdomText = `"${item.translation}" — ${item.source}\n\n`;
+    setCurrentEditingEntry((prev) => {
+      if (!prev) {
+        const todayStr = new Date().toISOString().split("T")[0];
+        return {
+          id: "entry_" + Date.now(),
+          userId: user ? user.uid : "guest_user",
+          title: `Reflection on ${item.theme}`,
+          date: todayStr,
+          mood: "calm",
+          tags: ["reflection", item.theme.toLowerCase().replace(/\s+/g, "_")],
+          initialThought: wisdomText,
+          summary: "",
+          insights: [],
+          reflectionType: "daily_reflection",
+          messages: [],
+          favorite: false,
+          wordCount: 0,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+      }
+      return {
+        ...prev,
+        initialThought: prev.initialThought
+          ? `${prev.initialThought}\n\n${wisdomText}`
+          : wisdomText,
+      };
+    });
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+    showToast(`Anchored journal with ${item.source} ✍️`);
   };
 
   // Modals & UI States
@@ -891,6 +928,9 @@ export default function App() {
                 dailyChecklists={dailyChecklists}
                 onUpdateDailyChecklist={handleUpdateDailyChecklist}
                 userId={user?.uid}
+                bookmarkedWisdomIds={bookmarkedWisdomIds}
+                onToggleWisdomBookmark={handleToggleWisdomBookmark}
+                onReflectWithWisdom={handleReflectWithWisdom}
               />
             )}
 

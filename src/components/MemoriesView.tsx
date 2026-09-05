@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   Calendar as CalendarIcon,
   BookOpen,
@@ -27,9 +27,21 @@ import {
   Plus,
   Circle,
   CheckCircle2,
+  Compass,
+  Bookmark,
+  BookmarkCheck,
+  Volume2,
+  Square,
+  Copy,
 } from "lucide-react";
-import { DailyChecklist, JournalEntry, MoodType, PriorityTask } from "../types";
+import { DailyChecklist, DailyWisdomItem, JournalEntry, MoodType, PriorityTask, WisdomStream } from "../types";
 import { DailyPhotoModal } from "./DailyPhotoModal";
+import {
+  WISDOM_LIBRARY,
+  speakWisdom,
+  stopSpeakingWisdom,
+  playMeditationChime,
+} from "../data/wisdomLibrary";
 
 interface MemoriesViewProps {
   entries: JournalEntry[];
@@ -43,6 +55,9 @@ interface MemoriesViewProps {
   dailyChecklists?: Record<string, DailyChecklist>;
   onUpdateDailyChecklist?: (checklist: DailyChecklist) => Promise<void>;
   userId?: string;
+  bookmarkedWisdomIds?: string[];
+  onToggleWisdomBookmark?: (item: DailyWisdomItem) => void;
+  onReflectWithWisdom?: (item: DailyWisdomItem) => void;
 }
 
 const MOOD_EMOJIS: Record<string, string> = {
@@ -77,15 +92,96 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
   dailyChecklists = {},
   onUpdateDailyChecklist,
   userId,
+  bookmarkedWisdomIds = [],
+  onToggleWisdomBookmark,
+  onReflectWithWisdom,
 }) => {
-  // Mode switcher: "calendar" | "timeline" | "photos"
-  const [viewMode, setViewMode] = useState<"calendar" | "timeline" | "photos">("calendar");
+  // Mode switcher: "calendar" | "timeline" | "photos" | "wisdom"
+  const [viewMode, setViewMode] = useState<"calendar" | "timeline" | "photos" | "wisdom">("calendar");
 
   // Search & Filters
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedMood, setSelectedMood] = useState<string>("all");
   const [onlyFavorites, setOnlyFavorites] = useState(false);
   const [onlyPhotos, setOnlyPhotos] = useState(false);
+
+  // Wisdom Treasury specific state
+  const [wisdomSubTab, setWisdomSubTab] = useState<"saved" | "explore">(
+    bookmarkedWisdomIds.length > 0 ? "saved" : "explore"
+  );
+  const [selectedWisdomStream, setSelectedWisdomStream] = useState<WisdomStream>("all");
+  const [wisdomSearchQuery, setWisdomSearchQuery] = useState("");
+  const [playingWisdomId, setPlayingWisdomId] = useState<string | null>(null);
+  const [expandedTransliterations, setExpandedTransliterations] = useState<Record<string, boolean>>({});
+  const [copiedWisdomId, setCopiedWisdomId] = useState<string | null>(null);
+
+  // Cleanup audio on unmount or tab switch
+  useEffect(() => {
+    return () => {
+      stopSpeakingWisdom();
+    };
+  }, [viewMode]);
+
+  // Audio Play / Stop for Wisdom Verses
+  const handleTogglePlayWisdom = (item: DailyWisdomItem) => {
+    if (playingWisdomId === item.id) {
+      stopSpeakingWisdom();
+      setPlayingWisdomId(null);
+    } else {
+      stopSpeakingWisdom();
+      playMeditationChime();
+      setPlayingWisdomId(item.id);
+      speakWisdom(
+        item,
+        () => setPlayingWisdomId(null),
+        () => setPlayingWisdomId(null)
+      );
+    }
+  };
+
+  // Copy Verse to Clipboard
+  const handleCopyWisdom = (item: DailyWisdomItem) => {
+    let text = `${item.source}\n\n`;
+    if (item.originalText) text += `${item.originalText}\n\n`;
+    if (item.transliteration) text += `(${item.transliteration})\n\n`;
+    text += `"${item.translation}"\n\nReflection: ${item.contextBridge}`;
+    navigator.clipboard.writeText(text);
+    setCopiedWisdomId(item.id);
+    setTimeout(() => setCopiedWisdomId(null), 2500);
+  };
+
+  // Saved Wisdom verses
+  const savedWisdomItems = useMemo(() => {
+    return WISDOM_LIBRARY.filter((item) => bookmarkedWisdomIds.includes(item.id));
+  }, [bookmarkedWisdomIds]);
+
+  // Filtered Wisdom verses for active sub-tab & search/stream
+  const activeWisdomList = useMemo(() => {
+    const baseList = wisdomSubTab === "saved" ? savedWisdomItems : WISDOM_LIBRARY;
+    return baseList.filter((item) => {
+      if (selectedWisdomStream !== "all" && item.stream !== selectedWisdomStream) {
+        return false;
+      }
+      if (wisdomSearchQuery.trim()) {
+        const query = wisdomSearchQuery.toLowerCase();
+        const matchesTranslation = item.translation.toLowerCase().includes(query);
+        const matchesSource = item.source.toLowerCase().includes(query);
+        const matchesTheme = item.theme.toLowerCase().includes(query);
+        const matchesContext = item.contextBridge.toLowerCase().includes(query);
+        const matchesOriginal = item.originalText?.toLowerCase().includes(query);
+        const matchesTransliteration = item.transliteration?.toLowerCase().includes(query);
+        return (
+          matchesTranslation ||
+          matchesSource ||
+          matchesTheme ||
+          matchesContext ||
+          matchesOriginal ||
+          matchesTransliteration
+        );
+      }
+      return true;
+    });
+  }, [wisdomSubTab, savedWisdomItems, selectedWisdomStream, wisdomSearchQuery]);
 
   // Selected Entry for Reading Drawer / Modal
   const [readingEntry, setReadingEntry] = useState<JournalEntry | null>(null);
@@ -378,6 +474,23 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
               </span>
             )}
           </button>
+
+          <button
+            onClick={() => setViewMode("wisdom")}
+            className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+              viewMode === "wisdom"
+                ? "bg-white text-[#2C241E] shadow-sm scale-102"
+                : "text-[#7E6E5F] hover:text-[#2C241E]"
+            }`}
+          >
+            <Compass className="w-4 h-4 text-[#BA4A00]" />
+            <span>Wisdom Treasury</span>
+            {bookmarkedWisdomIds.length > 0 && (
+              <span className="text-[10px] bg-amber-100 text-amber-900 border border-amber-300 px-1.5 py-0.2 rounded-full font-bold">
+                {bookmarkedWisdomIds.length}
+              </span>
+            )}
+          </button>
         </div>
       </div>
 
@@ -402,7 +515,7 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
       )}
 
       {/* FILTER & SEARCH TOOLBAR (Visible on Timeline & Photos) */}
-      {viewMode !== "calendar" && (
+      {(viewMode === "timeline" || viewMode === "photos") && (
         <div className="mt-6 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 bg-[#FAF7F2] p-3 rounded-2xl border border-[#E8DFC8]">
           {/* Search Input */}
           <div className="relative flex-1">
@@ -1236,6 +1349,321 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* VIEW 4: WISDOM TREASURY & SAVED VERSES */}
+      {viewMode === "wisdom" && (
+        <div className="mt-8 space-y-6">
+          {/* Sub-navigation and Search Header */}
+          <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 bg-[#FAF7F2] p-4 rounded-3xl border border-[#E8DFC8]">
+            {/* Sub-tabs: Saved Bookmarks vs Explore All */}
+            <div className="flex items-center space-x-1.5 bg-[#EFE7DA] p-1.5 rounded-2xl border border-[#E3D7C3] self-start md:self-auto">
+              <button
+                type="button"
+                onClick={() => setWisdomSubTab("saved")}
+                className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                  wisdomSubTab === "saved"
+                    ? "bg-white text-[#2C241E] shadow-sm scale-102"
+                    : "text-[#7E6E5F] hover:text-[#2C241E]"
+                }`}
+              >
+                <Bookmark className="w-3.5 h-3.5 text-[#BA4A00]" />
+                <span>Saved Bookmarks</span>
+                <span className="text-[10px] bg-[#FAF7F2] text-[#935116] px-1.5 py-0.2 rounded-full font-bold">
+                  {savedWisdomItems.length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setWisdomSubTab("explore")}
+                className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                  wisdomSubTab === "explore"
+                    ? "bg-white text-[#2C241E] shadow-sm scale-102"
+                    : "text-[#7E6E5F] hover:text-[#2C241E]"
+                }`}
+              >
+                <Compass className="w-3.5 h-3.5 text-[#BA4A00]" />
+                <span>Explore Treasury</span>
+                <span className="text-[10px] bg-[#FAF7F2] text-[#7E6E5F] px-1.5 py-0.2 rounded-full font-bold">
+                  {WISDOM_LIBRARY.length}
+                </span>
+              </button>
+            </div>
+
+            {/* Search Input */}
+            <div className="relative flex-1 max-w-md">
+              <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#7E6E5F]" />
+              <input
+                type="text"
+                placeholder="Search teachings, shlokas, themes, or authors..."
+                value={wisdomSearchQuery}
+                onChange={(e) => setWisdomSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 rounded-xl bg-white border border-[#E5DAC6] text-xs text-[#2C241E] placeholder:text-[#9C8E7E] focus:outline-hidden focus:ring-2 focus:ring-[#E67E22]/30"
+              />
+              {wisdomSearchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setWisdomSearchQuery("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[#7E6E5F] hover:text-[#2C241E] cursor-pointer"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Tradition Stream Filter Pills */}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-semibold text-[#7E6E5F] mr-1 flex items-center space-x-1">
+              <Filter className="w-3.5 h-3.5" />
+              <span>Tradition:</span>
+            </span>
+
+            {[
+              { id: "all", label: "All Traditions", icon: "✨" },
+              { id: "gita", label: "Bhagavad Gita", icon: "🪔" },
+              { id: "stoic", label: "Stoic Philosophy", icon: "🏛️" },
+              { id: "buddhism", label: "Buddhist Mindfulness", icon: "☸️" },
+              { id: "psychology", label: "Cognitive Reframing", icon: "🧠" },
+            ].map((stream) => {
+              const isActive = selectedWisdomStream === stream.id;
+              return (
+                <button
+                  key={stream.id}
+                  type="button"
+                  onClick={() => setSelectedWisdomStream(stream.id as WisdomStream)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all flex items-center space-x-1.5 cursor-pointer ${
+                    isActive
+                      ? "bg-[#2C241E] text-white shadow-xs"
+                      : "bg-white border border-[#E8DFC8] text-[#5D5046] hover:bg-[#FAF7F2] hover:text-[#2C241E]"
+                  }`}
+                >
+                  <span>{stream.icon}</span>
+                  <span>{stream.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Empty State: No Saved Bookmarks */}
+          {wisdomSubTab === "saved" && savedWisdomItems.length === 0 && (
+            <div className="text-center py-16 px-4 bg-white rounded-3xl border border-dashed border-[#E0D5C1] space-y-4">
+              <div className="w-14 h-14 rounded-2xl bg-[#F5EBE1] text-[#935116] flex items-center justify-center mx-auto">
+                <Bookmark className="w-7 h-7" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="font-display font-bold text-lg text-[#2C241E]">
+                  No saved verses yet
+                </h3>
+                <p className="text-xs text-[#7E6E5F] max-w-md mx-auto">
+                  When you find contemplative verses from the Gita, Stoics, or mindfulness traditions that ground you, click the bookmark icon to save them here for reflection.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setWisdomSubTab("explore")}
+                className="px-5 py-2.5 rounded-xl bg-[#2C241E] text-[#FAF7F2] text-xs font-semibold hover:bg-[#4A3B32] transition-all shadow-sm inline-flex items-center space-x-2 cursor-pointer"
+              >
+                <Compass className="w-4 h-4 text-amber-300" />
+                <span>Explore Full Wisdom Treasury</span>
+              </button>
+            </div>
+          )}
+
+          {/* Empty State: Active Search Returned 0 Items */}
+          {activeWisdomList.length === 0 && !(wisdomSubTab === "saved" && savedWisdomItems.length === 0) && (
+            <div className="text-center py-14 px-4 bg-white rounded-3xl border border-dashed border-[#E0D5C1] space-y-3">
+              <Compass className="w-8 h-8 text-[#D5C4A1] mx-auto" />
+              <h3 className="font-display font-bold text-base text-[#2C241E]">
+                No verses found
+              </h3>
+              <p className="text-xs text-[#7E6E5F] max-w-sm mx-auto">
+                No teachings matched "{wisdomSearchQuery}". Try adjusting your search query or selecting "All Traditions".
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setWisdomSearchQuery("");
+                  setSelectedWisdomStream("all");
+                }}
+                className="text-xs font-semibold text-[#BA4A00] underline hover:text-[#78281F] cursor-pointer"
+              >
+                Clear all filters
+              </button>
+            </div>
+          )}
+
+          {/* Wisdom Cards Grid */}
+          {activeWisdomList.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {activeWisdomList.map((item) => {
+                const isBookmarked = bookmarkedWisdomIds.includes(item.id);
+                const isPlaying = playingWisdomId === item.id;
+                const isCopied = copiedWisdomId === item.id;
+                const showTranslit = !!expandedTransliterations[item.id];
+
+                return (
+                  <div
+                    key={item.id}
+                    className="bg-white rounded-3xl p-5 border border-[#E8DFC8] shadow-xs hover:shadow-md transition-all flex flex-col justify-between hover:border-[#D5C4A1] space-y-4"
+                  >
+                    <div className="space-y-3">
+                      {/* Top Bar: Tradition Icon & Source + Bookmark */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center space-x-2">
+                          <span className="text-base shrink-0">
+                            {item.stream === "gita"
+                              ? "🪔"
+                              : item.stream === "stoic"
+                              ? "🏛️"
+                              : item.stream === "buddhism"
+                              ? "☸️"
+                              : "🧠"}
+                          </span>
+                          <div>
+                            <h4 className="text-xs font-bold text-[#2C241E]">
+                              {item.source}
+                            </h4>
+                            <span className="text-[10px] text-[#7E6E5F]">
+                              {item.stream === "gita"
+                                ? "Bhagavad Gita"
+                                : item.stream === "stoic"
+                                ? "Stoic Philosophy"
+                                : item.stream === "buddhism"
+                                ? "Buddhist Mindfulness"
+                                : "Cognitive Reframing"}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center space-x-1.5">
+                          <span className="px-2 py-0.5 rounded-md bg-[#FAF7F2] border border-[#E8DFC8] text-[10px] font-medium text-[#4A3B32]">
+                            {item.theme}
+                          </span>
+
+                          {onToggleWisdomBookmark && (
+                            <button
+                              type="button"
+                              onClick={() => onToggleWisdomBookmark(item)}
+                              className={`p-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
+                                isBookmarked
+                                  ? "bg-amber-100 text-amber-800 hover:bg-amber-200"
+                                  : "text-[#A89887] hover:text-[#2C241E] hover:bg-[#FAF7F2]"
+                              }`}
+                              title={isBookmarked ? "Remove from bookmarks" : "Bookmark this verse"}
+                            >
+                              {isBookmarked ? (
+                                <BookmarkCheck className="w-4 h-4 text-[#BA4A00]" />
+                              ) : (
+                                <Bookmark className="w-4 h-4" />
+                              )}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Original Sanskrit / Greek Text (if present) */}
+                      {item.originalText && (
+                        <div className="p-3 rounded-2xl bg-[#FAF7F2] border border-[#E8DFC8]/70 text-center space-y-1">
+                          <p className="font-serif text-sm text-[#2C241E] leading-relaxed whitespace-pre-line">
+                            {item.originalText}
+                          </p>
+                          {item.transliteration && showTranslit && (
+                            <p className="text-[11px] text-[#7E6E5F] italic font-serif pt-1 border-t border-[#E8DFC8]/50">
+                              {item.transliteration}
+                            </p>
+                          )}
+                          {item.transliteration && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setExpandedTransliterations((prev) => ({
+                                  ...prev,
+                                  [item.id]: !prev[item.id],
+                                }))
+                              }
+                              className="text-[10px] text-[#BA4A00] font-semibold hover:underline pt-0.5 cursor-pointer block mx-auto"
+                            >
+                              {showTranslit ? "Hide Transliteration" : "Show Transliteration"}
+                            </button>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Translation Quote */}
+                      <blockquote className="text-sm font-serif italic text-[#2C241E] leading-relaxed pl-3 border-l-2 border-[#D35400]">
+                        "{item.translation}"
+                      </blockquote>
+
+                      {/* Context Bridge / Why this helps */}
+                      <p className="text-xs text-[#5D5046] leading-relaxed bg-amber-50/60 p-2.5 rounded-xl border border-amber-200/60">
+                        <strong className="text-[#BA4A00] font-semibold">Contemplation: </strong>
+                        {item.contextBridge}
+                      </p>
+                    </div>
+
+                    {/* Action Bar at bottom */}
+                    <div className="pt-3 border-t border-[#F0E8D9] flex items-center justify-between text-xs gap-2">
+                      <div className="flex items-center space-x-1.5">
+                        {/* Listen Button */}
+                        <button
+                          type="button"
+                          onClick={() => handleTogglePlayWisdom(item)}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all flex items-center space-x-1 cursor-pointer ${
+                            isPlaying
+                              ? "bg-amber-600 border-amber-700 text-white shadow-xs"
+                              : "bg-white border-[#E8DFC8] text-[#7E6E5F] hover:text-[#2C241E] hover:bg-[#FAF7F2]"
+                          }`}
+                          title={isPlaying ? "Stop audio" : "Listen to verse read aloud"}
+                        >
+                          {isPlaying ? (
+                            <>
+                              <Square className="w-3 h-3 fill-current" />
+                              <span>Stop</span>
+                            </>
+                          ) : (
+                            <>
+                              <Volume2 className="w-3 h-3" />
+                              <span>Listen</span>
+                            </>
+                          )}
+                        </button>
+
+                        {/* Copy Button */}
+                        <button
+                          type="button"
+                          onClick={() => handleCopyWisdom(item)}
+                          className="p-1.5 rounded-lg text-xs font-semibold bg-white border border-[#E8DFC8] text-[#7E6E5F] hover:text-[#2C241E] hover:bg-[#FAF7F2] transition-colors cursor-pointer"
+                          title="Copy verse to clipboard"
+                        >
+                          {isCopied ? (
+                            <Check className="w-3.5 h-3.5 text-emerald-700" />
+                          ) : (
+                            <Copy className="w-3.5 h-3.5" />
+                          )}
+                        </button>
+                      </div>
+
+                      {/* Reflect in Today's Journal Action */}
+                      {onReflectWithWisdom && (
+                        <button
+                          type="button"
+                          onClick={() => onReflectWithWisdom(item)}
+                          className="px-2.5 py-1 rounded-lg bg-[#FAF7F2] hover:bg-[#F5EBE1] text-[#935116] border border-[#E8DFC8] text-xs font-semibold flex items-center space-x-1 cursor-pointer transition-colors"
+                          title="Anchor today's journal reflection with this verse"
+                        >
+                          <Feather className="w-3 h-3 text-[#BA4A00]" />
+                          <span>Reflect in Journal</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

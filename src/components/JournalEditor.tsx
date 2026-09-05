@@ -903,96 +903,77 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
         }}
       />
 
-      {/* Top Action Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-white rounded-2xl p-4 border border-[#E8DFC8] shadow-xs">
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Date Picker with Previous & Next Date Arrows */}
-          <div className="flex items-center space-x-0.5 bg-[#FAF7F2] p-1 rounded-xl border border-[#E8DFC8]">
-            <button
-              type="button"
-              onClick={goToPreviousDate}
-              className="p-1.5 rounded-lg text-[#7E6E5F] hover:text-[#2C241E] hover:bg-white transition-colors cursor-pointer"
-              title="Go to previous day"
-              aria-label="Previous day"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-
-            <div className="flex items-center space-x-1.5 px-2 py-0.5">
-              <Calendar className="w-4 h-4 text-[#BA4A00] shrink-0" />
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => handleDateChange(e.target.value)}
-                className="bg-transparent text-xs font-semibold text-[#2C241E] focus:outline-none cursor-pointer"
-              />
-            </div>
-
-            <button
-              type="button"
-              onClick={goToNextDate}
-              className="p-1.5 rounded-lg text-[#7E6E5F] hover:text-[#2C241E] hover:bg-white transition-colors cursor-pointer"
-              title="Go to next day"
-              aria-label="Next day"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-
-            {!isDateToday && (
+      {/* Top Action Bar: Date Navigation & Wisdom for Today side-by-side */}
+      <div className="bg-white rounded-2xl sm:rounded-3xl p-3.5 sm:p-4 border border-[#E8DFC8] shadow-xs">
+        <DailyWisdomCard
+          embedded={true}
+          dateControl={
+            <div className="flex items-center space-x-0.5 bg-[#FAF7F2] p-1 rounded-xl border border-[#E8DFC8]">
               <button
                 type="button"
-                onClick={jumpToToday}
-                className="ml-1 px-2 py-0.5 rounded-lg text-[10px] font-bold bg-[#BA4A00] text-white hover:bg-[#A04000] transition-colors cursor-pointer"
-                title="Jump to today"
+                onClick={goToPreviousDate}
+                className="p-1.5 rounded-lg text-[#7E6E5F] hover:text-[#2C241E] hover:bg-white transition-colors cursor-pointer"
+                title="Go to previous day"
+                aria-label="Previous day"
               >
-                Today
+                <ChevronLeft className="w-4 h-4" />
               </button>
-            )}
-          </div>
-        </div>
 
-        {/* Action Buttons */}
-        <div className="flex items-center space-x-2">
-          {isExistingEntry && onDeleteEntry && (
-            <button
-              onClick={() => setIsDeleteModalOpen(true)}
-              className="px-3 py-2 rounded-xl text-xs font-medium text-red-600 hover:text-red-700 hover:bg-red-50 border border-transparent hover:border-red-200 transition-all flex items-center space-x-1.5 cursor-pointer"
-              title="Delete this saved reflection"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Delete</span>
-            </button>
-          )}
+              <div className="flex items-center space-x-1.5 px-2 py-0.5">
+                <Calendar className="w-4 h-4 text-[#BA4A00] shrink-0" />
+                <input
+                  type="date"
+                  value={date}
+                  onChange={(e) => handleDateChange(e.target.value)}
+                  className="bg-transparent text-xs font-semibold text-[#2C241E] focus:outline-none cursor-pointer"
+                />
+              </div>
 
-          <button
-            type="button"
-            onClick={() => handleSave()}
-            disabled={isSaveDisabled}
-            className={`px-5 py-2 text-xs font-semibold rounded-xl shadow-xs flex items-center space-x-1.5 transition-all ${
-              isSaveDisabled
-                ? "bg-[#EDE5D8] text-[#A39282] cursor-not-allowed border border-[#DFD5C4]"
-                : "bg-gradient-to-r from-[#D35400] to-[#E67E22] hover:opacity-95 text-white hover:scale-102 cursor-pointer shadow-md"
-            }`}
-            title="Saves your written journaling thoughts and all AI reflections for this day"
-          >
-            {isSaving ? (
-              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-            ) : !hasUnsavedChanges && isExistingEntry ? (
-              <Check className="w-3.5 h-3.5 text-emerald-600" />
-            ) : (
-              <Save className="w-3.5 h-3.5" />
-            )}
-            <span>
-              {isSaving
-                ? "Saving..."
-                : !hasUnsavedChanges && isExistingEntry
-                ? "Saved (No Changes)"
-                : isExistingEntry
-                ? "Save Changes to Entry"
-                : "Save Entry"}
-            </span>
-          </button>
-        </div>
+              <button
+                type="button"
+                onClick={goToNextDate}
+                className="p-1.5 rounded-lg text-[#7E6E5F] hover:text-[#2C241E] hover:bg-white transition-colors cursor-pointer"
+                title="Go to next day"
+                aria-label="Next day"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+
+              {!isDateToday && (
+                <button
+                  type="button"
+                  onClick={jumpToToday}
+                  className="ml-1 px-2 py-0.5 rounded-lg text-[10px] font-bold bg-[#BA4A00] text-white hover:bg-[#A04000] transition-colors cursor-pointer"
+                  title="Jump to today"
+                >
+                  Today
+                </button>
+              )}
+            </div>
+          }
+          wisdom={currentWisdom}
+          currentMood={mood}
+          preferredStream={preferredStream}
+          onChangeStream={(stream) => {
+            setPreferredStream(stream);
+            try {
+              localStorage.setItem("warmth_wisdom_stream", stream);
+            } catch (e) {
+              // ignore
+            }
+            setWisdomCycleOffset(0);
+            setCurrentWisdom(getDailyWisdom(mood, stream, 0));
+            triggerDynamicWisdomMatch(initialThought, mood, stream);
+          }}
+          onCycleWisdom={() => {
+            const nextOffset = wisdomCycleOffset + 1;
+            setWisdomCycleOffset(nextOffset);
+            setCurrentWisdom(getDailyWisdom(mood, preferredStream, nextOffset));
+          }}
+          onSaveBookmark={onToggleWisdomBookmark}
+          isBookmarked={bookmarkedWisdomIds?.includes(currentWisdom.id) || false}
+          onOpenTreasury={() => setIsTreasuryOpen(true)}
+        />
       </div>
 
       {/* Unsaved Changes Warning Modal */}
@@ -1193,24 +1174,69 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
                 </div>
               </div>
 
-              {/* Favorite Toggle Button directly in Journal Card */}
-              <button
-                type="button"
-                onClick={() => setFavorite(!favorite)}
-                className={`px-3 py-1.5 rounded-xl border transition-all flex items-center space-x-1.5 text-xs font-medium cursor-pointer ${
-                  favorite
-                    ? "bg-amber-50 text-amber-800 border-amber-300 shadow-2xs"
-                    : "bg-[#FAF7F2] text-[#7E6E5F] border-[#E8DFC8] hover:bg-white hover:text-[#2C241E]"
-                }`}
-                title="Mark as Favorite Reflection"
-              >
-                <Star
-                  className={`w-3.5 h-3.5 ${
-                    favorite ? "fill-amber-400 text-amber-500" : "text-[#7E6E5F]"
+              {/* Action Buttons in Journal Card: Delete (if saved), Favorite, and Save Entry */}
+              <div className="flex items-center space-x-2">
+                {isExistingEntry && onDeleteEntry && (
+                  <button
+                    type="button"
+                    onClick={() => setIsDeleteModalOpen(true)}
+                    className="px-2.5 py-1.5 rounded-xl text-xs font-medium text-red-600 hover:text-red-700 hover:bg-red-50 border border-transparent hover:border-red-200 transition-all flex items-center space-x-1 cursor-pointer"
+                    title="Delete this saved reflection"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Delete</span>
+                  </button>
+                )}
+
+                {/* Favorite Toggle Button directly in Journal Card */}
+                <button
+                  type="button"
+                  onClick={() => setFavorite(!favorite)}
+                  className={`px-3 py-1.5 rounded-xl border transition-all flex items-center space-x-1.5 text-xs font-medium cursor-pointer ${
+                    favorite
+                      ? "bg-amber-50 text-amber-800 border-amber-300 shadow-2xs"
+                      : "bg-[#FAF7F2] text-[#7E6E5F] border-[#E8DFC8] hover:bg-white hover:text-[#2C241E]"
                   }`}
-                />
-                <span>{favorite ? "Favorited" : "Favorite"}</span>
-              </button>
+                  title="Mark as Favorite Reflection"
+                >
+                  <Star
+                    className={`w-3.5 h-3.5 ${
+                      favorite ? "fill-amber-400 text-amber-500" : "text-[#7E6E5F]"
+                    }`}
+                  />
+                  <span>{favorite ? "Favorited" : "Favorite"}</span>
+                </button>
+
+                {/* Save Entry Button directly inside Journaling Card */}
+                <button
+                  type="button"
+                  onClick={() => handleSave()}
+                  disabled={isSaveDisabled}
+                  className={`px-4 py-1.5 text-xs font-semibold rounded-xl shadow-xs flex items-center space-x-1.5 transition-all ${
+                    isSaveDisabled
+                      ? "bg-[#EDE5D8] text-[#A39282] cursor-not-allowed border border-[#DFD5C4]"
+                      : "bg-gradient-to-r from-[#D35400] to-[#E67E22] hover:opacity-95 text-white hover:scale-102 cursor-pointer shadow-md"
+                  }`}
+                  title="Saves your written journaling thoughts and all AI reflections for this day"
+                >
+                  {isSaving ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  ) : !hasUnsavedChanges && isExistingEntry ? (
+                    <Check className="w-3.5 h-3.5 text-emerald-600" />
+                  ) : (
+                    <Save className="w-3.5 h-3.5" />
+                  )}
+                  <span>
+                    {isSaving
+                      ? "Saving..."
+                      : !hasUnsavedChanges && isExistingEntry
+                      ? "Saved"
+                      : isExistingEntry
+                      ? "Save Changes"
+                      : "Save Entry"}
+                  </span>
+                </button>
+              </div>
             </div>
 
             {/* Title Input */}
@@ -1679,7 +1705,7 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
           </div>
         </div>
 
-        {/* Right Column (5 cols): Daily Habits & Focus Tasks + Daily Wisdom Anchor */}
+        {/* Right Column (5 cols): Daily Habits & Focus Tasks */}
         <div className="lg:col-span-5 space-y-6">
           {/* Interactive Daily Checklist & Tomorrow Planning Dock */}
           {onUpdateChecklist && onUpdateTomorrowChecklist && onOpenHabitManager && (
@@ -1694,34 +1720,6 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
               streakDays={streakDays}
             />
           )}
-
-          {/* Daily Wisdom & Gita Shloka Anchor Card */}
-          <div className="bg-white rounded-2xl border border-[#E8DFC8] p-5 shadow-xs">
-            <DailyWisdomCard
-              wisdom={currentWisdom}
-              currentMood={mood}
-              preferredStream={preferredStream}
-              onChangeStream={(stream) => {
-                setPreferredStream(stream);
-                try {
-                  localStorage.setItem("warmth_wisdom_stream", stream);
-                } catch (e) {
-                  // ignore
-                }
-                setWisdomCycleOffset(0);
-                setCurrentWisdom(getDailyWisdom(mood, stream, 0));
-                triggerDynamicWisdomMatch(initialThought, mood, stream);
-              }}
-              onCycleWisdom={() => {
-                const nextOffset = wisdomCycleOffset + 1;
-                setWisdomCycleOffset(nextOffset);
-                setCurrentWisdom(getDailyWisdom(mood, preferredStream, nextOffset));
-              }}
-              onSaveBookmark={onToggleWisdomBookmark}
-              isBookmarked={bookmarkedWisdomIds?.includes(currentWisdom.id) || false}
-              onOpenTreasury={() => setIsTreasuryOpen(true)}
-            />
-          </div>
         </div>
       </div>
 

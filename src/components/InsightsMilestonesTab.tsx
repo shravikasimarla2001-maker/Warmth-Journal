@@ -439,10 +439,21 @@ export const InsightsMilestonesTab: React.FC<InsightsMilestonesTabProps> = ({
                 type="button"
                 onClick={onOpenMileStones}
                 className="px-3 py-1.5 rounded-xl bg-white border border-[#E8DFC8] text-xs font-semibold text-[#7E6E5F] hover:text-[#2C241E] hover:bg-[#FAF7F2] transition-colors shadow-2xs flex items-center space-x-1.5 cursor-pointer"
-                title="Open Settings"
+                title="Configure Milestones"
               >
                 <Sparkles className="w-3.5 h-3.5 text-[#BA4A00]" />
                 <span>Configure Milestones</span>
+              </button>
+            )}
+            {onOpenSettings && (
+              <button
+                type="button"
+                onClick={onOpenSettings}
+                className="px-3 py-1.5 rounded-xl bg-white border border-[#E8DFC8] text-xs font-semibold text-[#7E6E5F] hover:text-[#2C241E] hover:bg-[#FAF7F2] transition-colors shadow-2xs flex items-center space-x-1.5 cursor-pointer"
+                title="Open Sanctuary Settings"
+              >
+                <Settings className="w-3.5 h-3.5 text-[#7E6E5F]" />
+                <span>Settings</span>
               </button>
             )}
           </div>
@@ -544,7 +555,17 @@ export const InsightsMilestonesTab: React.FC<InsightsMilestonesTabProps> = ({
               <Sparkles className="w-3.5 h-3.5 text-[#BA4A00]" />
               <span>Configure Habits</span>
             </button>
-            
+            {onOpenSettings && (
+              <button
+                type="button"
+                onClick={onOpenSettings}
+                className="px-3 py-1.5 rounded-xl bg-white border border-[#E8DFC8] text-xs font-semibold text-[#7E6E5F] hover:text-[#2C241E] hover:bg-[#FAF7F2] transition-colors shadow-2xs flex items-center space-x-1.5 cursor-pointer"
+                title="Open Sanctuary Settings"
+              >
+                <Settings className="w-3.5 h-3.5 text-[#7E6E5F]" />
+                <span>Settings</span>
+              </button>
+            )}
           </div>
         </div>
 

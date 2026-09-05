@@ -9,6 +9,7 @@ import {
   Bookmark,
   BookmarkCheck,
   ChevronDown,
+  ChevronUp,
   Compass,
   Feather,
   Square,
@@ -31,6 +32,8 @@ interface DailyWisdomCardProps {
   onOpenTreasury?: () => void;
   className?: string;
   readOnly?: boolean;
+  embedded?: boolean;
+  dateControl?: React.ReactNode;
 }
 
 const STREAM_LABELS: Record<
@@ -85,11 +88,14 @@ export const DailyWisdomCard: React.FC<DailyWisdomCardProps> = ({
   onOpenTreasury,
   className = "",
   readOnly = false,
+  embedded = false,
+  dateControl,
 }) => {
   const [copied, setCopied] = useState(false);
   const [showTransliteration, setShowTransliteration] = useState(true);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isRevealed, setIsRevealed] = useState(readOnly ? true : false);
 
   // Stop audio on unmount or when wisdom changes
   useEffect(() => {
@@ -132,12 +138,166 @@ export const DailyWisdomCard: React.FC<DailyWisdomCardProps> = ({
     }
   };
 
+  // Intentional On-Demand Reveal (Grounding Collapsible State)
+  if (!isRevealed) {
+    if (embedded) {
+      return (
+        <div
+          className={`flex flex-col lg:flex-row lg:items-center justify-between gap-3.5 ${className}`}
+        >
+          {dateControl && (
+            <div className="shrink-0 self-start lg:self-auto">
+              {dateControl}
+            </div>
+          )}
+
+          <div
+            className={`flex-1 flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+              dateControl ? "lg:pl-3.5 lg:border-l lg:border-[#F0E8D9]" : ""
+            }`}
+          >
+            <div className="flex items-center space-x-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-[#FAF7F2] border border-[#E8DFC8] shadow-2xs flex items-center justify-center text-base shrink-0">
+                {streamInfo.icon}
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center space-x-1.5 flex-wrap">
+                  <span className="text-[10px] uppercase font-bold tracking-widest text-[#BA4A00]">
+                    Wisdom For Today
+                  </span>
+                  <span className="text-[11px] font-semibold text-[#2C241E]">
+                    · {streamInfo.label}
+                  </span>
+                </div>
+                <p className="text-xs text-[#7E6E5F] mt-0.5 truncate max-w-xs sm:max-w-sm md:max-w-md">
+                  A contemplative verse curated for feeling{" "}
+                  <strong className="text-[#BA4A00] capitalize">
+                    {currentMood}
+                  </strong>
+                  .
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-2 shrink-0 self-start sm:self-auto">
+              <button
+                type="button"
+                onClick={() => {
+                  playMeditationChime();
+                  setIsRevealed(true);
+                }}
+                className="px-3.5 py-1.5 rounded-xl bg-[#2C241E] hover:bg-[#4A3B32] text-white text-xs font-semibold shadow-xs hover:shadow-sm transition-all flex items-center space-x-1.5 cursor-pointer"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                <span>Reveal Today's Verse</span>
+              </button>
+              {onOpenTreasury && (
+                <button
+                  type="button"
+                  onClick={onOpenTreasury}
+                  className="p-1.5 rounded-xl text-xs font-semibold bg-[#FAF7F2] border border-[#E8DFC8] text-[#7E6E5F] hover:text-[#2C241E] hover:bg-white transition-colors cursor-pointer"
+                  title="Explore Wisdom Treasury"
+                >
+                  <Compass className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div
+        className={`bg-white rounded-3xl border border-[#E8DFC8] shadow-xs p-4 sm:p-5 transition-all relative overflow-hidden ${className}`}
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
+          <div className="flex items-center space-x-3">
+            <div className="w-9 h-9 rounded-xl bg-[#FAF7F2] border border-[#E8DFC8] shadow-2xs flex items-center justify-center text-base shrink-0">
+              {streamInfo.icon}
+            </div>
+            <div>
+              <div className="flex items-center space-x-2">
+                <span className="text-[10px] uppercase font-bold tracking-widest text-[#BA4A00]">
+                  Wisdom For Today
+                </span>
+                <span className="text-[11px] font-semibold text-[#2C241E]">
+                  · {streamInfo.label}
+                </span>
+              </div>
+              <p className="text-xs text-[#7E6E5F] mt-0.5">
+                A contemplative verse curated for feeling <strong className="text-[#BA4A00] capitalize">{currentMood}</strong>.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-2 self-start sm:self-auto">
+            <button
+              type="button"
+              onClick={() => {
+                playMeditationChime();
+                setIsRevealed(true);
+              }}
+              className="px-3.5 py-2 rounded-xl bg-[#2C241E] hover:bg-[#4A3B32] text-white text-xs font-semibold shadow-xs hover:shadow-sm transition-all flex items-center space-x-1.5 cursor-pointer"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+              <span>Reveal Today's Verse</span>
+            </button>
+            {onOpenTreasury && (
+              <button
+                type="button"
+                onClick={onOpenTreasury}
+                className="p-2 rounded-xl text-xs font-semibold bg-white border border-[#E8DFC8] text-[#7E6E5F] hover:text-[#2C241E] hover:bg-[#FAF7F2] transition-colors cursor-pointer"
+                title="Explore Wisdom Treasury"
+              >
+                <Compass className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
-      className={`bg-white rounded-3xl border border-[#E8DFC8] shadow-xs overflow-hidden transition-all relative ${className}`}
+      className={
+        embedded
+          ? `space-y-3 transition-all relative animate-fade-in ${className}`
+          : `bg-white rounded-3xl border border-[#E8DFC8] shadow-xs overflow-hidden transition-all relative animate-fade-in ${className}`
+      }
     >
+      {/* If embedded with dateControl, show dateControl row on top */}
+      {embedded && dateControl && (
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-[#F0E8D9]">
+          <div className="shrink-0 self-start lg:self-auto">{dateControl}</div>
+          <div className="flex items-center space-x-2">
+            <span className="text-xs text-[#7E6E5F] flex items-center space-x-1.5">
+              <span>{streamInfo.icon}</span>
+              <strong className="text-[#2C241E]">Wisdom For Today</strong>
+              <span className="hidden sm:inline">· {wisdom.source}</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => setIsRevealed(false)}
+              className="px-2.5 py-1 text-xs font-semibold text-[#7E6E5F] hover:text-[#2C241E] bg-[#FAF7F2] hover:bg-[#F5EBE1] border border-[#E8DFC8] rounded-xl flex items-center space-x-1 cursor-pointer transition-colors shadow-2xs"
+              title="Collapse verse"
+            >
+              <ChevronUp className="w-3.5 h-3.5" />
+              <span>Hide Verse</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Top Header & Wisdom Lens Selector */}
-      <div className="p-4 sm:p-5 bg-gradient-to-r from-[#FAF7F2] to-[#F5EBE1]/60 border-b border-[#E8DFC8] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div
+        className={
+          embedded
+            ? "p-3 sm:p-3.5 bg-[#FAF7F2]/90 rounded-2xl border border-[#E8DFC8] flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+            : "p-4 sm:p-5 bg-gradient-to-r from-[#FAF7F2] to-[#F5EBE1]/60 border-b border-[#E8DFC8] flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+        }
+      >
         <div className="flex items-center space-x-2.5">
           <div className="w-8 h-8 rounded-xl bg-white border border-[#E8DFC8] shadow-2xs flex items-center justify-center text-base shrink-0">
             {streamInfo.icon}
@@ -282,11 +442,27 @@ export const DailyWisdomCard: React.FC<DailyWisdomCardProps> = ({
               )}
             </div>
           )}
+
+          {/* Collapse / Tuck away button */}
+          {!readOnly && (
+            <button
+              type="button"
+              onClick={() => {
+                stopSpeakingWisdom();
+                setIsPlayingAudio(false);
+                setIsRevealed(false);
+              }}
+              className="p-2 rounded-xl text-xs font-semibold bg-white border border-[#E8DFC8] text-[#7E6E5F] hover:text-[#2C241E] hover:bg-[#FAF7F2] transition-colors cursor-pointer"
+              title="Tuck away / Quiet view"
+            >
+              <ChevronUp className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
       </div>
 
       {/* Main Body: Sanskrit / Original Text + Translation + Context */}
-      <div className="p-5 sm:p-6 space-y-4">
+      <div className={embedded ? "p-1 sm:p-2 space-y-3.5" : "p-5 sm:p-6 space-y-4"}>
         {/* Sanskrit Original & Transliteration (for Gita / Buddhism) */}
         {wisdom.originalText && (
           <div className="bg-[#FAF7F2]/80 border border-[#E8DFC8]/80 rounded-2xl p-4 sm:p-5 text-center space-y-2">
