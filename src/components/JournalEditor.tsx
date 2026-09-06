@@ -242,7 +242,7 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
         JSON.stringify(existingSavedEntry.customFeelings || []);
       const typeChanged = reflectionType !== (existingSavedEntry.reflectionType || "daily_reflection");
       const summaryChanged = summary.trim() !== (existingSavedEntry.summary || "").trim();
-      const photoChanged = (photoUrl || undefined) !== (existingSavedEntry.photoUrl || undefined);
+      const photoChanged = (photoUrl || null) !== (existingSavedEntry.photoUrl || null);
       const photoCaptionChanged = photoCaption.trim() !== (existingSavedEntry.photoCaption || "").trim();
       const favChanged = favorite !== (existingSavedEntry.favorite || false);
       const insightsChanged = JSON.stringify(insights) !== JSON.stringify(existingSavedEntry.insights || []);
@@ -808,8 +808,8 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
       messages: customMessages || messages,
       favorite,
       wordCount,
-      photoUrl: photoUrl || undefined,
-      photoCaption: photoCaption || undefined,
+      photoUrl: photoUrl || null,
+      photoCaption: photoCaption || null,
       createdAt: createdAtState || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };

@@ -555,7 +555,7 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
             </select>
 
             {/* Starred Only Toggle */}
-            <button
+            {viewMode === "timeline" && (<button
               onClick={() => setOnlyFavorites(!onlyFavorites)}
               className={`flex items-center space-x-1 px-3 py-2 rounded-xl border transition-all ${
                 onlyFavorites
@@ -565,7 +565,7 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
             >
               <Star className={`w-3.5 h-3.5 ${onlyFavorites ? "fill-amber-500 text-amber-500" : ""}`} />
               <span>Starred</span>
-            </button>
+            </button>)}
 
             {/* Photos Only Toggle (Timeline mode) */}
             {viewMode === "timeline" && (
