@@ -45,6 +45,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenHabits,
   onOpenSettings,
 }) => {
+  // Determine if we are on the landing page (no user and no entries)
+  const isLanding = !user && entriesCount === 0;
+
   return (
     <header className="sticky top-0 z-40 bg-[#FAF7F2]/90 dark:bg-[#181412]/90 backdrop-blur-md border-b border-[#E8DFC8] dark:border-[#332A23] transition-colors">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -72,73 +75,74 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           </div>
 
-          {/* Nav Tabs (Today, Memories, Vision Board, Insights) */}
-          <nav className="hidden md:flex items-center space-x-1.5 bg-[#F4EDE2] dark:bg-[#241E1A] p-1.5 rounded-2xl border border-[#E5DAC6] dark:border-[#3E342B]">
-            <button
-              onClick={() => setActiveTab("today")}
-              className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-                activeTab === "today"
-                  ? "bg-white dark:bg-[#332A23] text-[#2C241E] dark:text-[#F5EBE1] shadow-xs scale-102"
-                  : "text-[#7E6E5F] dark:text-[#A89887] hover:text-[#2C241E] dark:hover:text-[#F5EBE1] hover:bg-[#FAF7F2]/60 dark:hover:bg-[#2C241E]/60"
-              }`}
-            >
-              <Sparkles className="w-3.5 h-3.5 text-[#E67E22]" />
-              <span>Today</span>
-            </button>
+          {/* Nav Tabs – hidden on landing page */}
+          {!isLanding && (
+            <nav className="hidden md:flex items-center space-x-1.5 bg-[#F4EDE2] dark:bg-[#241E1A] p-1.5 rounded-2xl border border-[#E5DAC6] dark:border-[#3E342B]">
+              <button
+                onClick={() => setActiveTab("today")}
+                className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                  activeTab === "today"
+                    ? "bg-white dark:bg-[#332A23] text-[#2C241E] dark:text-[#F5EBE1] shadow-xs scale-102"
+                    : "text-[#7E6E5F] dark:text-[#A89887] hover:text-[#2C241E] dark:hover:text-[#F5EBE1] hover:bg-[#FAF7F2]/60 dark:hover:bg-[#2C241E]/60"
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5 text-[#E67E22]" />
+                <span>Today</span>
+              </button>
 
-            <button
-              onClick={() => setActiveTab("memories")}
-              className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-                activeTab === "memories"
-                  ? "bg-white dark:bg-[#332A23] text-[#2C241E] dark:text-[#F5EBE1] shadow-xs scale-102"
-                  : "text-[#7E6E5F] dark:text-[#A89887] hover:text-[#2C241E] dark:hover:text-[#F5EBE1] hover:bg-[#FAF7F2]/60 dark:hover:bg-[#2C241E]/60"
-              }`}
-            >
-              <BookOpen className="w-3.5 h-3.5 text-[#BA4A00]" />
-              <span>Memories</span>
-              {entriesCount > 0 && (
-                <span className="text-[10px] bg-[#F5EBE1] dark:bg-[#3B2C1E] text-[#935116] dark:text-[#F39C12] px-1.5 py-0.2 rounded-full font-bold">
-                  {entriesCount}
-                </span>
-              )}
-            </button>
+              <button
+                onClick={() => setActiveTab("memories")}
+                className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                  activeTab === "memories"
+                    ? "bg-white dark:bg-[#332A23] text-[#2C241E] dark:text-[#F5EBE1] shadow-xs scale-102"
+                    : "text-[#7E6E5F] dark:text-[#A89887] hover:text-[#2C241E] dark:hover:text-[#F5EBE1] hover:bg-[#FAF7F2]/60 dark:hover:bg-[#2C241E]/60"
+                }`}
+              >
+                <BookOpen className="w-3.5 h-3.5 text-[#BA4A00]" />
+                <span>Memories</span>
+                {entriesCount > 0 && (
+                  <span className="text-[10px] bg-[#F5EBE1] dark:bg-[#3B2C1E] text-[#935116] dark:text-[#F39C12] px-1.5 py-0.2 rounded-full font-bold">
+                    {entriesCount}
+                  </span>
+                )}
+              </button>
 
-            <button
-              id="nav-tab-vision"
-              onClick={() => setActiveTab("vision")}
-              className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-                activeTab === "vision"
-                  ? "bg-white dark:bg-[#332A23] text-[#2C241E] dark:text-[#F5EBE1] shadow-xs scale-102"
-                  : "text-[#7E6E5F] dark:text-[#A89887] hover:text-[#2C241E] dark:hover:text-[#F5EBE1] hover:bg-[#FAF7F2]/60 dark:hover:bg-[#2C241E]/60"
-              }`}
-            >
-              <Compass className="w-3.5 h-3.5 text-[#D35400]" />
-              <span>Vision Board</span>
-              {visionGoalsCount > 0 && (
-                <span className="text-[10px] bg-[#F5EBE1] dark:bg-[#3B2C1E] text-[#935116] dark:text-[#F39C12] px-1.5 py-0.2 rounded-full font-bold">
-                  {visionGoalsCount}
-                </span>
-              )}
-            </button>
+              <button
+                id="nav-tab-vision"
+                onClick={() => setActiveTab("vision")}
+                className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                  activeTab === "vision"
+                    ? "bg-white dark:bg-[#332A23] text-[#2C241E] dark:text-[#F5EBE1] shadow-xs scale-102"
+                    : "text-[#7E6E5F] dark:text-[#A89887] hover:text-[#2C241E] dark:hover:text-[#F5EBE1] hover:bg-[#FAF7F2]/60 dark:hover:bg-[#2C241E]/60"
+                }`}
+              >
+                <Compass className="w-3.5 h-3.5 text-[#D35400]" />
+                <span>Vision Board</span>
+                {visionGoalsCount > 0 && (
+                  <span className="text-[10px] bg-[#F5EBE1] dark:bg-[#3B2C1E] text-[#935116] dark:text-[#F39C12] px-1.5 py-0.2 rounded-full font-bold">
+                    {visionGoalsCount}
+                  </span>
+                )}
+              </button>
 
-            <button
-              onClick={() => setActiveTab("insights")}
-              className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-                activeTab === "insights"
-                  ? "bg-white dark:bg-[#332A23] text-[#2C241E] dark:text-[#F5EBE1] shadow-xs scale-102"
-                  : "text-[#7E6E5F] dark:text-[#A89887] hover:text-[#2C241E] dark:hover:text-[#F5EBE1] hover:bg-[#FAF7F2]/60 dark:hover:bg-[#2C241E]/60"
-              }`}
-            >
-              <Award className="w-3.5 h-3.5 text-[#BA4A00]" />
-              <span>Insights & Growth</span>
-            </button>
-          </nav>
-
+              <button
+                onClick={() => setActiveTab("insights")}
+                className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                  activeTab === "insights"
+                    ? "bg-white dark:bg-[#332A23] text-[#2C241E] dark:text-[#F5EBE1] shadow-xs scale-102"
+                    : "text-[#7E6E5F] dark:text-[#A89887] hover:text-[#2C241E] dark:hover:text-[#F5EBE1] hover:bg-[#FAF7F2]/60 dark:hover:bg-[#2C241E]/60"
+                }`}
+              >
+                <Award className="w-3.5 h-3.5 text-[#BA4A00]" />
+                <span>Insights & Growth</span>
+              </button>
+            </nav>
+          )}
 
           {/* Right Status & Quick Actions */}
           <div className="flex items-center space-x-2 sm:space-x-3">
-            {/* Settings Modal Button */}
-            {onOpenSettings && (
+            {/* Settings Modal Button – optionally hide on landing? */}
+            {onOpenSettings && !isLanding && (
               <button
                 onClick={onOpenSettings}
                 className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-[#241E1A] border border-[#E8DFC8] dark:border-[#3E342B] text-xs font-semibold text-[#4A3B32] dark:text-[#E8DFC8] hover:bg-[#F5EBE1] dark:hover:bg-[#332A23] transition-all shadow-2xs cursor-pointer"
@@ -149,20 +153,22 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             )}
 
-            {/* Cloud Sync Status Pill */}
-            <div
-              className="hidden lg:flex items-center space-x-1.5 px-3 py-1 rounded-full bg-[#F5EBE1] dark:bg-[#241E1A] border border-[#E8DFC8] dark:border-[#3E342B] text-[11px] text-[#4A3B32] dark:text-[#A89887]"
-              title={firestoreConnected ? "Syncing to Cloud Firestore" : "Connecting to database..."}
-            >
-              <Cloud
-                className={`w-3.5 h-3.5 ${
-                  firestoreConnected ? "text-emerald-600" : "text-amber-500 animate-pulse"
-                }`}
-              />
-              <span className="font-medium">
-                {firestoreConnected ? "Synced" : "Connecting"}
-              </span>
-            </div>
+            {/* Cloud Sync Status Pill – hide on landing? */}
+            {!isLanding && (
+              <div
+                className="hidden lg:flex items-center space-x-1.5 px-3 py-1 rounded-full bg-[#F5EBE1] dark:bg-[#241E1A] border border-[#E8DFC8] dark:border-[#3E342B] text-[11px] text-[#4A3B32] dark:text-[#A89887]"
+                title={firestoreConnected ? "Syncing to Cloud Firestore" : "Connecting to database..."}
+              >
+                <Cloud
+                  className={`w-3.5 h-3.5 ${
+                    firestoreConnected ? "text-emerald-600" : "text-amber-500 animate-pulse"
+                  }`}
+                />
+                <span className="font-medium">
+                  {firestoreConnected ? "Synced" : "Connecting"}
+                </span>
+              </div>
+            )}
 
             {/* Auth Button / Profile */}
             {isAuthLoading ? (
@@ -208,65 +214,66 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </div>
 
-        {/* Mobile Navigation Bar */}
-        <div className="md:hidden flex items-center justify-around py-2 border-t border-[#E8DFC8] dark:border-[#3E342B] text-xs">
-          <button
-            onClick={() => setActiveTab("today")}
-            className={`flex flex-col items-center py-1 px-3 rounded-lg transition-colors ${
-              activeTab === "today"
-                ? "text-[#E67E22] font-semibold"
-                : "text-[#7E6E5F] dark:text-[#A89887]"
-            }`}
-          >
-            <Sparkles className="w-4 h-4 mb-0.5" />
-            <span>Today</span>
-          </button>
-          <button
-            onClick={() => setActiveTab("memories")}
-            className={`flex flex-col items-center py-1 px-3 rounded-lg transition-colors ${
-              activeTab === "memories"
-                ? "text-[#E67E22] font-semibold"
-                : "text-[#7E6E5F] dark:text-[#A89887]"
-            }`}
-          >
-            <BookOpen className="w-4 h-4 mb-0.5" />
-            <span>Memories</span>
-          </button>
-          <button
-            id="mobile-nav-tab-vision"
-            onClick={() => setActiveTab("vision")}
-            className={`flex flex-col items-center py-1 px-3 rounded-lg transition-colors ${
-              activeTab === "vision"
-                ? "text-[#E67E22] font-semibold"
-                : "text-[#7E6E5F] dark:text-[#A89887]"
-            }`}
-          >
-            <Compass className="w-4 h-4 mb-0.5" />
-            <span>Vision</span>
-          </button>
-          <button
-            onClick={() => setActiveTab("insights")}
-            className={`flex flex-col items-center py-1 px-3 rounded-lg transition-colors ${
-              activeTab === "insights"
-                ? "text-[#E67E22] font-semibold"
-                : "text-[#7E6E5F] dark:text-[#A89887]"
-            }`}
-          >
-            <Award className="w-4 h-4 mb-0.5" />
-            <span>Insights</span>
-          </button>
-          {onOpenSettings && (
+        {/* Mobile Navigation Bar – hidden on landing */}
+        {!isLanding && (
+          <div className="md:hidden flex items-center justify-around py-2 border-t border-[#E8DFC8] dark:border-[#3E342B] text-xs">
             <button
-              onClick={onOpenSettings}
-              className="flex flex-col items-center py-1 px-3 rounded-lg transition-colors text-[#7E6E5F] dark:text-[#A89887]"
+              onClick={() => setActiveTab("today")}
+              className={`flex flex-col items-center py-1 px-3 rounded-lg transition-colors ${
+                activeTab === "today"
+                  ? "text-[#E67E22] font-semibold"
+                  : "text-[#7E6E5F] dark:text-[#A89887]"
+              }`}
             >
-              <Settings className="w-4 h-4 mb-0.5" />
-              <span>Settings</span>
+              <Sparkles className="w-4 h-4 mb-0.5" />
+              <span>Today</span>
             </button>
-          )}
-        </div>
+            <button
+              onClick={() => setActiveTab("memories")}
+              className={`flex flex-col items-center py-1 px-3 rounded-lg transition-colors ${
+                activeTab === "memories"
+                  ? "text-[#E67E22] font-semibold"
+                  : "text-[#7E6E5F] dark:text-[#A89887]"
+              }`}
+            >
+              <BookOpen className="w-4 h-4 mb-0.5" />
+              <span>Memories</span>
+            </button>
+            <button
+              id="mobile-nav-tab-vision"
+              onClick={() => setActiveTab("vision")}
+              className={`flex flex-col items-center py-1 px-3 rounded-lg transition-colors ${
+                activeTab === "vision"
+                  ? "text-[#E67E22] font-semibold"
+                  : "text-[#7E6E5F] dark:text-[#A89887]"
+              }`}
+            >
+              <Compass className="w-4 h-4 mb-0.5" />
+              <span>Vision</span>
+            </button>
+            <button
+              onClick={() => setActiveTab("insights")}
+              className={`flex flex-col items-center py-1 px-3 rounded-lg transition-colors ${
+                activeTab === "insights"
+                  ? "text-[#E67E22] font-semibold"
+                  : "text-[#7E6E5F] dark:text-[#A89887]"
+              }`}
+            >
+              <Award className="w-4 h-4 mb-0.5" />
+              <span>Insights</span>
+            </button>
+            {onOpenSettings && (
+              <button
+                onClick={onOpenSettings}
+                className="flex flex-col items-center py-1 px-3 rounded-lg transition-colors text-[#7E6E5F] dark:text-[#A89887]"
+              >
+                <Settings className="w-4 h-4 mb-0.5" />
+                <span>Settings</span>
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </header>
   );
 };
-
