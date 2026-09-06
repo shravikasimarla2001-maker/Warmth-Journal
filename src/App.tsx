@@ -17,6 +17,12 @@ import {
   subscribeToMilestones,
   saveMilestone,
   DEFAULT_HABIT_TEMPLATES,
+  subscribeToVisionGoals,
+  saveVisionGoal,
+  deleteVisionGoal,
+  subscribeToVisionSettings,
+  saveVisionSettings,
+  DEFAULT_VISION_GOALS,
 } from "./lib/firebase";
 import {
   JournalEntry,
@@ -29,6 +35,8 @@ import {
   AppTheme,
   WisdomStream,
   DailyWisdomItem,
+  VisionGoal,
+  VisionBoardSettings,
 } from "./types";
 import { Navbar } from "./components/Navbar";
 import { LandingHero } from "./components/LandingHero";
@@ -38,11 +46,12 @@ import { HabitManagerModal } from "./components/HabitManagerModal";
 import { InsightsMilestonesTab, BADGE_DEFINITIONS } from "./components/InsightsMilestonesTab";
 import { MilestoneCelebrationModal } from "./components/MilestoneCelebrationModal";
 import { SettingsModal } from "./components/SettingsModal";
+import { VisionBoardView } from "./components/VisionBoardView";
 import { ShieldCheck, AlertTriangle, CheckCircle2, Feather } from "lucide-react";
 
 export default function App() {
-  // Navigation State: 3 Streamlined Core Tabs
-  const [activeTab, setActiveTab] = useState<"today" | "memories" | "insights">("today");
+  // Navigation State: Today, Memories, Vision Board, Insights
+  const [activeTab, setActiveTab] = useState<"today" | "memories" | "insights" | "vision">("today");
 
   // App Settings State (Theme, Wisdom lens, Hardware, Habits & Milestones)
   const [settings, setSettings] = useState<AppSettings>(() => {
@@ -140,6 +149,38 @@ export default function App() {
       return local ? JSON.parse(local) : [];
     } catch {
       return [];
+    }
+  });
+
+  // Vision Goals State (9 Life Pillars) - starts empty until user adds their intentions
+  const [visionGoals, setVisionGoals] = useState<VisionGoal[]>(() => {
+    try {
+      const local = localStorage.getItem("warmth_guest_vision_goals");
+      if (local) {
+        const parsed = JSON.parse(local);
+        if (Array.isArray(parsed)) {
+          // If stored data only contains the old dummy auto-generated seeds with no user-added goals, start clean
+          const isOldDummySeed =
+            parsed.length > 0 &&
+            parsed.every((g: any) => g.id && g.id.startsWith("v-") && !g.imageUrl);
+          if (!isOldDummySeed) {
+            return parsed;
+          }
+        }
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Vision Board Settings (Theme, Centerpiece Portrait, Manifesto)
+  const [visionSettings, setVisionSettings] = useState<VisionBoardSettings | null>(() => {
+    try {
+      const local = localStorage.getItem("warmth_guest_vision_settings");
+      return local ? JSON.parse(local) : null;
+    } catch {
+      return null;
     }
   });
 
@@ -252,6 +293,8 @@ export default function App() {
     let unsubHabits: () => void = () => {};
     let unsubChecklists: () => void = () => {};
     let unsubMilestones: () => void = () => {};
+    let unsubVisionGoals: () => void = () => {};
+    let unsubVisionSettings: () => void = () => {};
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
@@ -312,6 +355,32 @@ export default function App() {
             console.warn("Firestore milestones snapshot error:", err);
           }
         );
+
+        // Attach Realtime Listener to /users/{uid}/visionGoals
+        unsubVisionGoals = subscribeToVisionGoals(
+          currentUser.uid,
+          (cloudGoals) => {
+            if (cloudGoals.length > 0) {
+              setVisionGoals(cloudGoals);
+            } else {
+              setVisionGoals(DEFAULT_VISION_GOALS);
+            }
+          },
+          (err) => {
+            console.warn("Firestore vision goals snapshot error:", err);
+          }
+        );
+
+        // Attach Realtime Listener to /users/{uid}/visionSettings
+        unsubVisionSettings = subscribeToVisionSettings(
+          currentUser.uid,
+          (cloudSettings) => {
+            setVisionSettings(cloudSettings);
+          },
+          (err) => {
+            console.warn("Firestore vision settings snapshot error:", err);
+          }
+        );
       } else {
         // Logged out - reset editor and load guest state
         setCurrentEditingEntry(null);
@@ -329,11 +398,31 @@ export default function App() {
 
           const storedMilestones = localStorage.getItem("warmth_guest_milestones");
           setMilestones(storedMilestones ? JSON.parse(storedMilestones) : []);
+
+          const storedVision = localStorage.getItem("warmth_guest_vision_goals");
+          if (storedVision) {
+            const parsed = JSON.parse(storedVision);
+            const sanitized = Array.isArray(parsed)
+              ? parsed.map((g: any) =>
+                  g.imageSource === "curated"
+                    ? { ...g, imageUrl: undefined, imageSource: undefined, imagePrompt: undefined }
+                    : g
+                )
+              : DEFAULT_VISION_GOALS;
+            setVisionGoals(sanitized);
+          } else {
+            setVisionGoals(DEFAULT_VISION_GOALS);
+          }
+
+          const storedSettings = localStorage.getItem("warmth_guest_vision_settings");
+          setVisionSettings(storedSettings ? JSON.parse(storedSettings) : null);
         } catch {
           setEntries([]);
           setHabitTemplates(DEFAULT_HABIT_TEMPLATES);
           setDailyChecklists({});
           setMilestones([]);
+          setVisionGoals(DEFAULT_VISION_GOALS);
+          setVisionSettings(null);
         }
       }
     });
@@ -344,6 +433,8 @@ export default function App() {
       unsubHabits();
       unsubChecklists();
       unsubMilestones();
+      unsubVisionGoals();
+      unsubVisionSettings();
     };
   }, []);
 
@@ -799,10 +890,133 @@ export default function App() {
 
   // Unsaved changes tracking when navigating away from today tab
   const [hasUnsavedJournalChanges, setHasUnsavedJournalChanges] = useState(false);
-  const [pendingTabSwitch, setPendingTabSwitch] = useState<"today" | "memories" | "insights" | null>(null);
+  const [pendingTabSwitch, setPendingTabSwitch] = useState<"today" | "memories" | "insights" | "vision" | null>(null);
   const [isUnsavedTabModalOpen, setIsUnsavedTabModalOpen] = useState(false);
 
-  const handleTabChange = (targetTab: "today" | "memories" | "insights") => {
+  // Vision Board Handlers
+  const handleSaveVisionGoal = async (goalData: Partial<VisionGoal>) => {
+    const goalId = goalData.id || "vg_" + Date.now();
+    const existingGoal = visionGoals.find((g) => g.id === goalId);
+    const now = new Date().toISOString();
+
+    const newGoal: VisionGoal = {
+      id: goalId,
+      userId: user?.uid || "guest",
+      title: goalData.title || "My Intention",
+      explanation: goalData.explanation || "",
+      pillar: goalData.pillar || "health",
+      imageUrl: goalData.imageUrl !== undefined ? goalData.imageUrl : existingGoal?.imageUrl,
+      imageSource: goalData.imageUrl
+        ? goalData.imageSource === "user_upload"
+          ? "user_upload"
+          : "ai_generated"
+        : existingGoal?.imageSource,
+      imagePrompt: goalData.imageUrl ? goalData.imagePrompt : existingGoal?.imagePrompt,
+      targetTimeframe: goalData.targetTimeframe || "2026",
+      status: goalData.status || existingGoal?.status || "in_motion",
+      order: Number.isFinite(goalData.order)
+        ? (goalData.order as number)
+        : existingGoal?.order ?? visionGoals.length,
+      widthSpan: goalData.widthSpan ?? existingGoal?.widthSpan ?? 1,
+      customHeight: goalData.customHeight ?? existingGoal?.customHeight ?? 320,
+      customWidth: goalData.customWidth ?? existingGoal?.customWidth,
+      isTextOnly: goalData.isTextOnly !== undefined ? goalData.isTextOnly : (existingGoal?.isTextOnly ?? false),
+      hideBackground: goalData.hideBackground !== undefined ? goalData.hideBackground : (existingGoal?.hideBackground ?? false),
+      textBgColor: goalData.textBgColor !== undefined ? goalData.textBgColor : existingGoal?.textBgColor,
+      textBgImage: goalData.textBgImage !== undefined ? goalData.textBgImage : existingGoal?.textBgImage,
+      textFontStyle: goalData.textFontStyle ?? existingGoal?.textFontStyle ?? "serif",
+      // 🔥 ADD ROTATION SUPPORT
+      rotation: goalData.rotation ?? existingGoal?.rotation ?? 0,
+      createdAt: existingGoal?.createdAt || now,
+      updatedAt: now,
+    };
+
+    const updatedGoals = existingGoal
+      ? visionGoals.map((g) => (g.id === goalId ? newGoal : g))
+      : [...visionGoals, newGoal];
+
+    setVisionGoals(updatedGoals);
+    localStorage.setItem("warmth_guest_vision_goals", JSON.stringify(updatedGoals));
+
+    if (user) {
+      try {
+        await saveVisionGoal(user.uid, newGoal);
+      } catch (err) {
+        console.warn("Firestore vision save error:", err);
+      }
+    }
+    showToast(existingGoal ? "Life goal updated." : "Life goal anchored to vision board!");
+  };
+
+  const handleDeleteVisionGoal = async (goalId: string) => {
+    const updated = visionGoals.filter((g) => g.id !== goalId);
+    setVisionGoals(updated);
+    localStorage.setItem("warmth_guest_vision_goals", JSON.stringify(updated));
+
+    if (user) {
+      try {
+        await deleteVisionGoal(user.uid, goalId);
+      } catch (err) {
+        console.warn("Firestore vision delete error:", err);
+      }
+    }
+    showToast("Goal removed from vision board.");
+  };
+
+  const handleReorderVisionGoals = async (reorderedGoals: VisionGoal[]) => {
+    setVisionGoals(reorderedGoals);
+    localStorage.setItem("warmth_guest_vision_goals", JSON.stringify(reorderedGoals));
+
+    if (user) {
+      try {
+        for (const g of reorderedGoals) {
+          await saveVisionGoal(user.uid, g);
+        }
+      } catch (err) {
+        console.warn("Firestore vision reorder error:", err);
+      }
+    }
+  };
+
+  const handleSaveVisionSettings = async (settingsData: Partial<VisionBoardSettings>) => {
+    const updated: VisionBoardSettings = {
+      userId: user?.uid || "guest",
+      annualTheme: settingsData.annualTheme ?? visionSettings?.annualTheme,
+      userPhotoUrl:
+        settingsData.userPhotoUrl !== undefined
+          ? settingsData.userPhotoUrl
+          : visionSettings?.userPhotoUrl,
+      userNameOrMantra:
+        settingsData.userNameOrMantra ?? visionSettings?.userNameOrMantra,
+      manifesto: settingsData.manifesto ?? visionSettings?.manifesto,
+      updatedAt: new Date().toISOString(),
+    };
+
+    setVisionSettings(updated);
+    localStorage.setItem("warmth_guest_vision_settings", JSON.stringify(updated));
+
+    if (user) {
+      try {
+        await saveVisionSettings(user.uid, updated);
+      } catch (err) {
+        console.warn("Firestore vision settings save error:", err);
+      }
+    }
+    showToast("Vision Board centerpiece updated! ✨");
+  };
+
+  const handleSeedDefaultVisionGoals = async () => {
+    setVisionGoals(DEFAULT_VISION_GOALS);
+    localStorage.setItem("warmth_guest_vision_goals", JSON.stringify(DEFAULT_VISION_GOALS));
+    if (user) {
+      for (const g of DEFAULT_VISION_GOALS) {
+        await saveVisionGoal(user.uid, { ...g, userId: user.uid });
+      }
+    }
+    showToast("Seeded 9 Pillars Starter Tapestry! 🌟");
+  };
+
+  const handleTabChange = (targetTab: "today" | "memories" | "insights" | "vision") => {
     if (activeTab === "today" && hasUnsavedJournalChanges && targetTab !== "today") {
       setPendingTabSwitch(targetTab);
       setIsUnsavedTabModalOpen(true);
@@ -811,7 +1025,7 @@ export default function App() {
     executeTabSwitch(targetTab);
   };
 
-  const executeTabSwitch = (targetTab: "today" | "memories" | "insights") => {
+  const executeTabSwitch = (targetTab: "today" | "memories" | "insights" | "vision") => {
     if (targetTab === "memories") setSelectedFilterDate(null);
     if (targetTab === "today") {
       if (activeTab !== "today") {
@@ -838,6 +1052,7 @@ export default function App() {
         serverStatus={serverStatus}
         telemetry={telemetry}
         entriesCount={entries.length}
+        visionGoalsCount={visionGoals.length}
         onOpenHabits={() => openSettings("habits")}
         onOpenSettings={() => openSettings("habits")}
       />
@@ -932,6 +1147,20 @@ export default function App() {
                 onToggleWisdomBookmark={handleToggleWisdomBookmark}
                 onReflectWithWisdom={handleReflectWithWisdom}
               />
+            )}
+
+            {activeTab === "vision" && (
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+                <VisionBoardView
+                  goals={visionGoals}
+                  settings={visionSettings}
+                  onSaveGoal={handleSaveVisionGoal}
+                  onDeleteGoal={handleDeleteVisionGoal}
+                  onReorderGoals={handleReorderVisionGoals}
+                  onSaveSettings={handleSaveVisionSettings}
+                  onSeedDefaults={handleSeedDefaultVisionGoals}
+                />
+              </div>
             )}
 
             {activeTab === "insights" && (

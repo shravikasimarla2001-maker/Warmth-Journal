@@ -9,13 +9,14 @@ import {
   CheckCircle2,
   Settings,
   Cloud,
+  Compass,
 } from "lucide-react";
 import { User } from "firebase/auth";
 import { ModelTelemetry } from "../types";
 
 interface NavbarProps {
-  activeTab: "today" | "memories" | "insights";
-  setActiveTab: (tab: "today" | "memories" | "insights") => void;
+  activeTab: "today" | "memories" | "insights" | "vision";
+  setActiveTab: (tab: "today" | "memories" | "insights" | "vision") => void;
   user: User | null;
   isAuthLoading: boolean;
   onSignIn: () => void;
@@ -24,6 +25,7 @@ interface NavbarProps {
   serverStatus: "online" | "connecting" | "offline";
   telemetry: ModelTelemetry | null;
   entriesCount: number;
+  visionGoalsCount?: number;
   onOpenHabits?: () => void;
   onOpenSettings?: () => void;
 }
@@ -39,6 +41,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   serverStatus,
   telemetry,
   entriesCount,
+  visionGoalsCount = 0,
   onOpenHabits,
   onOpenSettings,
 }) => {
@@ -69,7 +72,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           </div>
 
-          {/* Nav Tabs (Streamlined 3 Core Spaces) */}
+          {/* Nav Tabs (Today, Memories, Vision Board, Insights) */}
           <nav className="hidden md:flex items-center space-x-1.5 bg-[#F4EDE2] dark:bg-[#241E1A] p-1.5 rounded-2xl border border-[#E5DAC6] dark:border-[#3E342B]">
             <button
               onClick={() => setActiveTab("today")}
@@ -101,6 +104,24 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
 
             <button
+              id="nav-tab-vision"
+              onClick={() => setActiveTab("vision")}
+              className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                activeTab === "vision"
+                  ? "bg-white dark:bg-[#332A23] text-[#2C241E] dark:text-[#F5EBE1] shadow-xs scale-102"
+                  : "text-[#7E6E5F] dark:text-[#A89887] hover:text-[#2C241E] dark:hover:text-[#F5EBE1] hover:bg-[#FAF7F2]/60 dark:hover:bg-[#2C241E]/60"
+              }`}
+            >
+              <Compass className="w-3.5 h-3.5 text-[#D35400]" />
+              <span>Vision Board</span>
+              {visionGoalsCount > 0 && (
+                <span className="text-[10px] bg-[#F5EBE1] dark:bg-[#3B2C1E] text-[#935116] dark:text-[#F39C12] px-1.5 py-0.2 rounded-full font-bold">
+                  {visionGoalsCount}
+                </span>
+              )}
+            </button>
+
+            <button
               onClick={() => setActiveTab("insights")}
               className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${
                 activeTab === "insights"
@@ -112,6 +133,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span>Insights & Growth</span>
             </button>
           </nav>
+
 
           {/* Right Status & Quick Actions */}
           <div className="flex items-center space-x-2 sm:space-x-3">
@@ -209,6 +231,18 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             <BookOpen className="w-4 h-4 mb-0.5" />
             <span>Memories</span>
+          </button>
+          <button
+            id="mobile-nav-tab-vision"
+            onClick={() => setActiveTab("vision")}
+            className={`flex flex-col items-center py-1 px-3 rounded-lg transition-colors ${
+              activeTab === "vision"
+                ? "text-[#E67E22] font-semibold"
+                : "text-[#7E6E5F] dark:text-[#A89887]"
+            }`}
+          >
+            <Compass className="w-4 h-4 mb-0.5" />
+            <span>Vision</span>
           </button>
           <button
             onClick={() => setActiveTab("insights")}

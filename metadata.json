@@ -1,6 +1,6 @@
 {
   "name": "Warmth AI Journal & Reflections",
-  "description": "A warmth-themed personal journal and reflection sanctuary powered by Gemini AI and Cloud Firestore with Google Authentication, multi-turn AI reflections, calendar heatmap, and user-isolated persistence.",
+  "description": "A warmth-themed personal journal, reflection sanctuary, and 9-pillar vision board powered by Gemini AI and Cloud Firestore with Google Authentication, AI goal visualization, and wallpaper export.",
   "requestFramePermissions": ["camera", "microphone"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

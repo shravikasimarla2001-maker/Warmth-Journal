@@ -107,8 +107,10 @@ export const LandingHero: React.FC<LandingHeroProps> = ({
       </div>
 
       {/* Feature Bento Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mb-12">
-        {/* Card 1: Multi-Turn AI Reflections */}
+      {/* Card 1: Multi-Turn AI Reflections */}
+      {/* Card 2: Calendar & Heatmap */}
+      {/* Card 3: User Isolated Privacy */}
+      {/*<div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mb-12">
         <div className="bg-[#FFFFFF]/90 rounded-2xl p-6 border border-[#E8DFC8] shadow-xs relative overflow-hidden flex flex-col justify-between">
           <div className="space-y-3">
             <div className="w-10 h-10 rounded-xl bg-[#F5EBE1] text-[#BA4A00] flex items-center justify-center border border-[#E8DFC8]">
@@ -127,8 +129,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({
             <span>Powered by Gemini 3.6 Flash</span>
           </div>
         </div>
-
-        {/* Card 2: Calendar & Heatmap */}
+ 
         <div className="bg-[#FFFFFF]/90 rounded-2xl p-6 border border-[#E8DFC8] shadow-xs relative overflow-hidden flex flex-col justify-between">
           <div className="space-y-3">
             <div className="w-10 h-10 rounded-xl bg-[#F5EBE1] text-[#D35400] flex items-center justify-center border border-[#E8DFC8]">
@@ -148,7 +149,6 @@ export const LandingHero: React.FC<LandingHeroProps> = ({
           </div>
         </div>
 
-        {/* Card 3: User Isolated Privacy */}
         <div className="bg-[#FFFFFF]/90 rounded-2xl p-6 border border-[#E8DFC8] shadow-xs relative overflow-hidden flex flex-col justify-between">
           <div className="space-y-3">
             <div className="w-10 h-10 rounded-xl bg-[#F5EBE1] text-[#935116] flex items-center justify-center border border-[#E8DFC8]">
@@ -167,6 +167,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({
           </div>
         </div>
       </div>
+      */}
 
       {/* Interactive Live Scratchpad Preview */}
       <div className="bg-gradient-to-b from-[#FFFFFF] to-[#FDFBF7] rounded-2xl border-2 border-[#E5DAC6] p-6 sm:p-8 shadow-sm">

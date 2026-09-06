@@ -98,6 +98,20 @@ service cloud.firestore {
         allow list: if isOwner(userId);
         allow create, update: if isOwner(userId) && isValidId(milestoneId);
       }
+
+      // Isolated Vision Board Goals Subcollection (9 Life Pillars)
+      match /visionGoals/{goalId} {
+        allow get, delete: if isOwner(userId) && isValidId(goalId);
+        allow list: if isOwner(userId);
+        allow create, update: if isOwner(userId) && isValidId(goalId);
+      }
+
+      // Isolated Vision Board Settings (Portrait, Theme, North Star Manifesto)
+      match /visionSettings/{settingsDoc} {
+        allow get, delete: if isOwner(userId) && isValidId(settingsDoc);
+        allow list: if isOwner(userId);
+        allow create, update: if isOwner(userId) && isValidId(settingsDoc);
+      }
     }
   }
 }

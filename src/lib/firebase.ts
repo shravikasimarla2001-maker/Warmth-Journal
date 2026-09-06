@@ -28,6 +28,8 @@ import {
   HabitTemplate,
   DailyChecklist,
   UserMilestone,
+  VisionGoal,
+  VisionBoardSettings,
 } from "../types";
 
 // Initialize Firebase App
@@ -513,4 +515,248 @@ export async function saveMilestone(
     handleFirestoreError(error, OperationType.WRITE, path);
   }
 }
+
+// =====================================================
+// VISION BOARD CRUD & DEFAULT BLUEPRINTS (9 PILLARS)
+// =====================================================
+
+export const DEFAULT_VISION_GOALS: VisionGoal[] = [];
+
+export const SAMPLE_STARTER_GOALS: VisionGoal[] = [
+  {
+    id: "sample-health",
+    userId: "guest",
+    title: "Radiant Vitality & Morning Ocean Runs",
+    explanation: "Wake up with sustained energy, nourish my body with wholesome food, and build joyful endurance.",
+    pillar: "health",
+    targetTimeframe: "2026",
+    status: "in_motion",
+    order: 0,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  },
+  {
+    id: "sample-career",
+    userId: "guest",
+    title: "Lead Meaningful Work That Elevates People",
+    explanation: "Work on high-leverage creative challenges with deep focus, autonomy, and genuine pride in craftsmanship.",
+    pillar: "career",
+    targetTimeframe: "2026",
+    status: "in_motion",
+    order: 1,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  },
+  {
+    id: "sample-spirituality",
+    userId: "guest",
+    title: "Daily Meditation & Inner Tranquility",
+    explanation: "Carve out 20 quiet minutes of silent presence every dawn; cultivate equanimity in the storms of life.",
+    pillar: "spirituality",
+    targetTimeframe: "Daily Ritual",
+    status: "in_motion",
+    order: 2,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  },
+  {
+    id: "sample-finances",
+    userId: "guest",
+    title: "Financial Peace & Intentional Abundance",
+    explanation: "Full debt freedom, a robust 12-month peace fund, and conscious investments supporting freedom.",
+    pillar: "finances",
+    targetTimeframe: "2026",
+    status: "in_motion",
+    order: 3,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  },
+  {
+    id: "sample-partner",
+    userId: "guest",
+    title: "Deep Soulful Partnership & Sunset Walks",
+    explanation: "Cultivate deep mutual trust, authentic communication, affectionate laughter, and weekly sacred date nights.",
+    pillar: "partner",
+    targetTimeframe: "Lifelong",
+    status: "in_motion",
+    order: 4,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  },
+  {
+    id: "sample-family",
+    userId: "guest",
+    title: "Warm Sunday Family Gatherings",
+    explanation: "Create an inviting home filled with homemade food, unconditional warmth, and stories across generations.",
+    pillar: "family",
+    targetTimeframe: "Ongoing",
+    status: "in_motion",
+    order: 5,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  },
+  {
+    id: "sample-friends",
+    userId: "guest",
+    title: "Firepit Conversations with Soul Friends",
+    explanation: "Stay deeply connected with people who elevate my soul; share raw honesty, support, and unfiltered joy.",
+    pillar: "friends",
+    targetTimeframe: "Year-round",
+    status: "in_motion",
+    order: 6,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  },
+  {
+    id: "sample-fun",
+    userId: "guest",
+    title: "Mountain Road Trips & Acoustic Music",
+    explanation: "Embrace playful curiosity without productivity guilt; learn songs on guitar and camp under starlit skies.",
+    pillar: "fun",
+    targetTimeframe: "Summer 2026",
+    status: "in_motion",
+    order: 7,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  },
+  {
+    id: "sample-community",
+    userId: "guest",
+    title: "Mentoring & Mindful Seva",
+    explanation: "Give back my time and resources to lift others up; plant trees, mentor aspiring learners, and build community.",
+    pillar: "community",
+    targetTimeframe: "Ongoing",
+    status: "in_motion",
+    order: 8,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  },
+];
+
+export function subscribeToVisionGoals(
+  userId: string,
+  onData: (goals: VisionGoal[]) => void,
+  onError?: (err: any) => void
+): Unsubscribe {
+  const path = `users/${userId}/visionGoals`;
+  const q = query(
+    collection(db, "users", userId, "visionGoals"),
+    orderBy("order", "asc")
+  );
+
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const list = snapshot.docs.map((docSnap) => ({
+        id: docSnap.id,
+        ...docSnap.data(),
+      })) as VisionGoal[];
+      onData(list);
+    },
+    (error) => {
+      handleFirestoreError(error, OperationType.LIST, path);
+      if (onError) onError(error);
+    }
+  );
+}
+
+export async function saveVisionGoal(
+  userId: string,
+  goal: VisionGoal
+): Promise<void> {
+  const path = `users/${userId}/visionGoals/${goal.id}`;
+  const docRef = doc(db, "users", userId, "visionGoals", goal.id);
+
+  const cleanData = sanitizeForFirestore({
+    id: goal.id,
+    userId,
+    title: goal.title,
+    explanation: goal.explanation || "",
+    pillar: goal.pillar,
+    imageUrl: goal.imageUrl || null,
+    imagePrompt: goal.imagePrompt || null,
+    imageSource: goal.imageSource || "curated",
+    targetTimeframe: goal.targetTimeframe || "",
+    status: goal.status || "in_motion",
+    order: Number.isFinite(goal.order) ? goal.order : 0,
+    widthSpan: goal.widthSpan || 1,
+    customHeight: goal.customHeight || 320,
+    customWidth: goal.customWidth || null,
+    isTextOnly: goal.isTextOnly ?? false,
+    hideBackground: goal.hideBackground ?? false,
+    textBgColor: goal.textBgColor || null,
+    textBgImage: goal.textBgImage || null,
+    textFontStyle: goal.textFontStyle || "serif",
+    createdAt: goal.createdAt || new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  });
+
+  try {
+    await setDoc(docRef, cleanData);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+export async function deleteVisionGoal(
+  userId: string,
+  goalId: string
+): Promise<void> {
+  const path = `users/${userId}/visionGoals/${goalId}`;
+  const docRef = doc(db, "users", userId, "visionGoals", goalId);
+
+  try {
+    await deleteDoc(docRef);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}
+
+export function subscribeToVisionSettings(
+  userId: string,
+  onData: (settings: VisionBoardSettings | null) => void,
+  onError?: (err: any) => void
+): Unsubscribe {
+  const path = `users/${userId}/visionSettings/current`;
+  const docRef = doc(db, "users", userId, "visionSettings", "current");
+
+  return onSnapshot(
+    docRef,
+    (docSnap) => {
+      if (docSnap.exists()) {
+        onData(docSnap.data() as VisionBoardSettings);
+      } else {
+        onData(null);
+      }
+    },
+    (error) => {
+      handleFirestoreError(error, OperationType.GET, path);
+      if (onError) onError(error);
+    }
+  );
+}
+
+export async function saveVisionSettings(
+  userId: string,
+  settings: Partial<VisionBoardSettings>
+): Promise<void> {
+  const path = `users/${userId}/visionSettings/current`;
+  const docRef = doc(db, "users", userId, "visionSettings", "current");
+
+  const cleanData = sanitizeForFirestore({
+    userId,
+    annualTheme: settings.annualTheme || "",
+    userPhotoUrl: settings.userPhotoUrl || null,
+    userNameOrMantra: settings.userNameOrMantra || "",
+    manifesto: settings.manifesto || "",
+    updatedAt: new Date().toISOString(),
+  });
+
+  try {
+    await setDoc(docRef, cleanData, { merge: true });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
 

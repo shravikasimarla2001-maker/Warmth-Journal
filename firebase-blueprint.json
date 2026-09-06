@@ -90,6 +90,41 @@
         "postcardData": { "type": "object" }
       },
       "required": ["id", "userId", "badgeKey", "title", "unlockedAt"]
+    },
+    "VisionGoal": {
+      "title": "VisionGoal",
+      "description": "User vision board goal with 9 life pillars, personal or AI visual, text intention, and manifested status.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 256 },
+        "explanation": { "type": "string", "maxLength": 2000 },
+        "pillar": { "type": "string", "enum": ["health", "career", "spirituality", "finances", "partner", "family", "friends", "fun", "community"] },
+        "imageUrl": { "type": "string", "maxLength": 900000 },
+        "imagePrompt": { "type": "string", "maxLength": 500 },
+        "imageSource": { "type": "string", "enum": ["user_upload", "ai_generated", "curated"] },
+        "targetTimeframe": { "type": "string", "maxLength": 64 },
+        "status": { "type": "string", "enum": ["in_motion", "manifested"] },
+        "order": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "title", "pillar", "status", "order", "createdAt"]
+    },
+    "VisionBoardSettings": {
+      "title": "VisionBoardSettings",
+      "description": "Vision board overall configuration, annual theme, user portrait centerpiece, and AI manifesto.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "annualTheme": { "type": "string", "maxLength": 256 },
+        "userPhotoUrl": { "type": "string", "maxLength": 900000 },
+        "userNameOrMantra": { "type": "string", "maxLength": 256 },
+        "manifesto": { "type": "string", "maxLength": 3000 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId"]
     }
   },
   "firestore": {
@@ -112,6 +147,14 @@
     "/users/{userId}/milestones/{milestoneId}": {
       "schema": "UserMilestone",
       "description": "Owner-isolated unlocked milestone badges and memory postcards."
+    },
+    "/users/{userId}/visionGoals/{goalId}": {
+      "schema": "VisionGoal",
+      "description": "Owner-isolated vision board goals across 9 life dimensions."
+    },
+    "/users/{userId}/visionSettings/{settingsDoc}": {
+      "schema": "VisionBoardSettings",
+      "description": "Owner-isolated vision board settings, portrait, and manifesto."
     }
   }
 }

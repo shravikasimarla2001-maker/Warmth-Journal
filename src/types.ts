@@ -172,3 +172,51 @@ export interface HabitMoodCorrelation {
   upliftPercentage: number;
 }
 
+export type VisionPillar =
+  | "health"
+  | "career"
+  | "spirituality"
+  | "finances"
+  | "partner"
+  | "family"
+  | "friends"
+  | "fun"
+  | "community";
+
+export interface VisionGoal {
+  id: string;
+  userId: string;
+  title: string;
+  explanation?: string;
+  pillar: VisionPillar;
+  imageUrl?: string;
+  imagePrompt?: string;
+  imageSource?: "user_upload" | "ai_generated" | "curated";
+  targetTimeframe?: string; // e.g. "2026", "This Season", "Next 6 Months"
+  status: "in_motion" | "manifested";
+  order: number;
+  // Sizing controls directly on board
+  widthSpan?: 1 | 2 | 3; // 1 = 1 col, 2 = 2 cols, 3 = 3 cols (full width)
+  customHeight?: number; // custom height in pixels (e.g. 220 to 560px)
+  customWidth?: number; // custom width in pixels for scrapbook free-flow
+  // Text-only customization
+  isTextOnly?: boolean;
+  hideBackground?: boolean; // remove background color (transparent text on board)
+  textBgColor?: string; // background color choice (e.g. warm sand, linen, terracotta, dark)
+  textBgImage?: string; // uploaded background image / paper texture
+  textFontStyle?: "serif" | "script" | "sans"; // font pairing (script like Image 4 "creativity thrives here")
+  rotation?: number; // degrees, default 0
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface VisionBoardSettings {
+  userId: string;
+  annualTheme?: string; // e.g. "Year of Vitality, Grounded Abundance & Warmth"
+  userPhotoUrl?: string; // Centerpiece Future Self photo
+  userNameOrMantra?: string;
+  centerpieceCaption?: string;
+  manifesto?: string; // Poetic AI North Star synthesis
+  updatedAt: string;
+}
+

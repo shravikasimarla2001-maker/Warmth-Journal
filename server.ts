@@ -479,6 +479,399 @@ Return ONLY valid JSON matching this schema:
   }
 });
 
+// ==========================================
+// 6. AI Vision Board Goal Visualizer & Synthesizer
+// ==========================================
+
+// Curated aesthetic fallback visuals for 9 pillars
+const PILLAR_CURATED_VISUALS: Record<string, string[]> = {
+  health: [
+    "https://images.unsplash.com/photo-1502680390469-be75c86b636f?auto=format&fit=crop&w=1000&q=80",
+    "https://images.unsplash.com/photo-1518611012118-696072aa579a?auto=format&fit=crop&w=1000&q=80",
+    "https://images.unsplash.com/photo-1498837167922-ddd27525d352?auto=format&fit=crop&w=1000&q=80",
+    "https://images.unsplash.com/photo-1476480862126-209bfaa8edc8?auto=format&fit=crop&w=1000&q=80",
+  ],
+  career: [
+    "https://images.unsplash.com/photo-1499750310107-5fef28a66643?auto=format&fit=crop&w=1000&q=80",
+    "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1000&q=80",
+    "https://images.unsplash.com/photo-1507679799987-c73779587ccf?auto=format&fit=crop&w=1000&q=80",
+    "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=1000&q=80",
+  ],
+  spirituality: [
+    "https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&w=1000&q=80",
+    "https://images.unsplash.com/photo-1470240731273-7821a6eeb6bd?auto=format&fit=crop&w=1000&q=80",
+    "https://images.unsplash.com/photo-1518241353330-0f7941c2d9b5?auto=format&fit=crop&w=1000&q=80",
+    "https://images.unsplash.com/photo-1514894780887-121968d00567?auto=format&fit=crop&w=1000&q=80",
+  ],
+  finances: [
+    "https://images.unsplash.com/photo-1579621970563-ebec7560ff3e?auto=format&fit=crop&w=1000&q=80",
+    "https://images.unsplash.com/photo-1553729459-efe14ef6055d?auto=format&fit=crop&w=1000&q=80",
+    "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?auto=format&fit=crop&w=1000&q=80",
+    "https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?auto=format&fit=crop&w=1000&q=80",
+  ],
+  partner: [
+    "https://images.unsplash.com/photo-1518199266791-5375a83190b7?auto=format&fit=crop&w=1000&q=80",
+    "https://images.unsplash.com/photo-1516589178581-6cd7833ae3b2?auto=format&fit=crop&w=1000&q=80",
+    "https://images.unsplash.com/photo-1522673607200-164d1b6ce486?auto=format&fit=crop&w=1000&q=80",
+    "https://images.unsplash.com/photo-1494774157365-9e04c6720e47?auto=format&fit=crop&w=1000&q=80",
+  ],
+  family: [
+    "https://images.unsplash.com/photo-1511895426328-dc8714191300?auto=format&fit=crop&w=1000&q=80",
+    "https://images.unsplash.com/photo-1542037104857-ffbb0b9155fb?auto=format&fit=crop&w=1000&q=80",
+    "https://images.unsplash.com/photo-1609234656388-0ff363383899?auto=format&fit=crop&w=1000&q=80",
+    "https://images.unsplash.com/photo-1576765608535-5f04d1e3f289?auto=format&fit=crop&w=1000&q=80",
+  ],
+  friends: [
+    "https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&w=1000&q=80",
+    "https://images.unsplash.com/photo-1539635278303-d4002c07eae3?auto=format&fit=crop&w=1000&q=80",
+    "https://images.unsplash.com/photo-1517048676732-d65bc937f952?auto=format&fit=crop&w=1000&q=80",
+    "https://images.unsplash.com/photo-1543807535-eceef0bc6599?auto=format&fit=crop&w=1000&q=80",
+  ],
+  fun: [
+    "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1000&q=80",
+    "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=1000&q=80",
+    "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?auto=format&fit=crop&w=1000&q=80",
+    "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1000&q=80",
+  ],
+  community: [
+    "https://images.unsplash.com/photo-1559027615-cd4628902d4a?auto=format&fit=crop&w=1000&q=80",
+    "https://images.unsplash.com/photo-1582213782179-e0d53f98f2ca?auto=format&fit=crop&w=1000&q=80",
+    "https://images.unsplash.com/photo-1469571486292-0ba58a3f068b?auto=format&fit=crop&w=1000&q=80",
+    "https://images.unsplash.com/photo-1531206715517-5c0ba140b2b8?auto=format&fit=crop&w=1000&q=80",
+  ],
+};
+
+app.post("/api/visualize-goal", async (req: Request, res: Response) => {
+  try {
+    const {
+      title = "",
+      pillar = "health",
+      explanation = "",
+      isRegenerate = false,
+      seed,
+      centerpieceUrl,
+      userNameOrMantra,
+    } = req.body;
+
+    if (!title) {
+      return res.status(400).json({ error: "Goal title is required." });
+    }
+
+    const seedValue = seed !== undefined ? Number(seed) : Math.floor(Math.random() * 1000000);
+
+    // Multimodal or descriptive person identification if centerpiece is provided
+    let personDescription = "";
+    if (centerpieceUrl) {
+      try {
+        const ai = getGeminiClient();
+        if (ai) {
+          if (centerpieceUrl.startsWith("data:image/")) {
+            const match = centerpieceUrl.match(/^data:(image\/[a-zA-Z+]+);base64,(.+)$/);
+            if (match) {
+              const resp = await ai.models.generateContent({
+                model: "gemini-2.5-flash",
+                contents: [
+                  { inlineData: { data: match[2], mimeType: match[1] } },
+                  { text: "Analyze this portrait. Describe the person's physical appearance (gender presentation, approximate age, hair style and color, skin tone, facial expression, and distinctive characteristics) in 1-2 detailed sentences so an image model can reproduce their likeness in other scenes." },
+                ],
+              });
+              personDescription = resp?.text?.trim() || "";
+            }
+          } else if (centerpieceUrl.startsWith("http://") || centerpieceUrl.startsWith("https://")) {
+            try {
+              const fetchResp = await fetch(centerpieceUrl);
+              if (fetchResp.ok) {
+                const buffer = await fetchResp.arrayBuffer();
+                const base64Data = Buffer.from(buffer).toString("base64");
+                const mimeType = (fetchResp.headers.get("content-type") || "image/jpeg").split(";")[0];
+                const resp = await ai.models.generateContent({
+                  model: "gemini-2.5-flash",
+                  contents: [
+                    { inlineData: { data: base64Data, mimeType } },
+                    { text: "Analyze this portrait. Describe the person's physical appearance (gender presentation, approximate age, hair style and color, skin tone, facial expression, and distinctive characteristics) in 1-2 detailed sentences so an image model can reproduce their likeness in other scenes." },
+                  ],
+                });
+                personDescription = resp?.text?.trim() || "";
+              }
+            } catch (err) {
+              console.warn("Could not fetch remote centerpiece photo:", err);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("Centerpiece analysis note:", err);
+      }
+      if (!personDescription) {
+        personDescription = userNameOrMantra
+          ? `a person embodying "${userNameOrMantra}"`
+          : "a joyful, radiant individual";
+      }
+    }
+
+    const personInstruction = personDescription
+      ? `\nCRITICAL PERSONALIZATION DIRECTIVE:
+The user has provided their real centerpiece portrait, describing: "${personDescription}".
+You MUST generate a visual depicting THIS EXACT PERSON actively achieving and embodying their goal ("${title}"):
+- If the goal is gym / workout / physical fitness: depict this person looking fit and healthy inside a sunlit modern gym with equipment or running outdoors in athletic wear.
+- If the goal is healthy food / nutrition: depict this person enjoying a vibrant healthy meal (colorful bowl, smoothie, fresh ingredients) or cooking in a warm modern kitchen.
+- If the goal is travel (e.g. New York, Europe, tropical): depict this person smiling in that exact destination's iconic setting (e.g. New York Times Square or skyline, holding travel tickets / passport) in golden hour light.
+- If the goal is career / business / finances: depict this person succeeding in their dream setting (collaborative design studio, presentation, or enjoying financial freedom).
+- If the goal is peace / spirituality: depict this person mindfully journaling or meditating in a peaceful sunlit sanctuary.
+Make visualPrompt a direct, realistic 35mm photo description showing this person in the tangible moment!`
+      : `Make visualPrompt a direct, realistic 35mm photographic description capturing the tangible achievement of "${title}" in a realistic setting.`;
+
+    const prompt = `You are a mindful vision board architect and visual aesthetic director.
+The user wants to visualize this life goal:
+Goal Title: "${title}"
+Life Pillar: ${pillar}
+Explanation: "${explanation || 'No additional explanation'}"
+${personInstruction}
+${isRegenerate ? `This is a request to regenerate with a fresh artistic perspective (seed: ${seedValue}).` : ""}
+
+Craft an inspiring manifestation concept. Return ONLY valid JSON:
+{
+  "visualPrompt": "A detailed 1-2 sentence description of a realistic 35mm photograph showing ${personDescription ? 'this specific person' : 'a realistic scene'} embodying this goal in a tangible real-world setting.",
+  "mantra": "A powerful, concise 1-sentence present-tense affirmation for this goal.",
+  "searchKeywords": ["3 specific visual search terms"]
+}`;
+
+    const systemInstruction =
+      "You are 'Warmth Vision Director'. Output valid JSON only, without markdown backticks or commentary.";
+
+    const result = await generateContentWithFallback(
+      prompt,
+      systemInstruction,
+      true
+    );
+
+    let parsedData: any;
+    try {
+      const cleanJson = result.text
+        .replace(/```json/gi, "")
+        .replace(/```/g, "")
+        .trim();
+      parsedData = JSON.parse(cleanJson);
+    } catch {
+      parsedData = {
+        visualPrompt: personDescription
+          ? `A realistic 35mm photograph of ${personDescription} feeling deeply fulfilled and joyful after achieving ${title}.`
+          : `A serene, realistic 35mm photograph capturing the essence of ${title}.`,
+        mantra: `I am actively creating a life aligned with ${title}.`,
+        searchKeywords: [pillar, "mindfulness", "growth"],
+      };
+    }
+
+    // Generate dynamic AI visual with unique seed
+    const rawPrompt = parsedData.visualPrompt || `A photorealistic photograph of ${title}`;
+    const cleanPrompt = rawPrompt.replace(/^(A photorealistic photograph of|A photo of|A picture of)\s+/i, "");
+    const enhancedPrompt = `cinematic 35mm photography, ${cleanPrompt}, warm natural lighting, authentic textures, realistic human proportions, award-winning composition, 8k`;
+    const selectedImageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(enhancedPrompt)}?width=1200&height=800&nologo=true&seed=${seedValue}`;
+
+    res.json({
+      success: true,
+      imageUrl: selectedImageUrl,
+      visualPrompt: parsedData.visualPrompt,
+      mantra: parsedData.mantra,
+      searchKeywords: parsedData.searchKeywords || [],
+      seed: seedValue,
+      isPersonified: Boolean(personDescription),
+      personDescription,
+      telemetry: {
+        modelUsed: result.modelUsed,
+        attemptedModels: result.attemptedModels,
+        fallbackTriggered: result.fallbackTriggered,
+        timestamp: new Date().toISOString(),
+      },
+    });
+  } catch (error: any) {
+    console.error("Visualize goal error:", error);
+    res.status(500).json({
+      error: error.message || "Failed to visualize goal",
+    });
+  }
+});
+
+app.post("/api/generate-single-photo-vision-board", async (req: Request, res: Response) => {
+  try {
+    const {
+      goals = [],
+      annualTheme = "Year of Grounded Vitality & Purpose",
+      userNameOrMantra = "Seeker",
+      aspectRatio = "16:9", // "16:9" | "9:16" | "1:1"
+      seed,
+    } = req.body;
+
+    const goalsList = Array.isArray(goals) && goals.length > 0
+      ? goals.map((g: any, idx: number) => `${idx + 1}. [${g.pillar || 'Life Focus'}]: "${g.title}" ${g.explanation ? `(${g.explanation})` : ""}`).join("\n")
+      : "1. Radiant Vitality & Morning Movement\n2. Meaningful Creative Work\n3. Daily Stillness & Presence\n4. Financial Peace & Generosity\n5. Deep Loving Connections";
+
+    const prompt = `You are a world-class visionary artist and creative director.
+Synthesize the following collection of life intentions into ONE single, cohesive, breathtaking vision board photograph / wallpaper:
+
+User Theme: "${annualTheme}"
+Anchor Mantra / Name: "${userNameOrMantra}"
+
+Goals Across Life Dimensions:
+${goalsList}
+
+Create a prompt for a SINGLE cinematic master photograph that harmoniously weaves these intentions together into one stunning, unified visual space. 
+For example, an inspiring aesthetic sanctuary flooded with warm morning sunlight, featuring elements of tranquil nature, an organized creative work table with notebooks and artisanal tools, healthy nourishment, peaceful meditation textures, warm hearth light, and distant mountain or ocean views.
+
+Return ONLY valid JSON:
+{
+  "masterPrompt": "A detailed 2-3 sentence visual prompt describing this single unified master photograph, emphasizing warm golden hour lighting, cinematic film grain, serene composition, and uplifting depth.",
+  "masterMantra": "A memorable 1-sentence overarching mantra that unites all these goals into one declaration.",
+  "title": "A short poetic 3-5 word title for this vision board."
+}`;
+
+    const systemInstruction =
+      "You are 'Warmth Master Visionary'. Output valid JSON only, without markdown backticks or commentary.";
+
+    const result = await generateContentWithFallback(
+      prompt,
+      systemInstruction,
+      true
+    );
+
+    let parsed: any;
+    try {
+      const cleanJson = result.text
+        .replace(/```json/gi, "")
+        .replace(/```/g, "")
+        .trim();
+      parsed = JSON.parse(cleanJson);
+    } catch {
+      parsed = {
+        masterPrompt: `A serene, warm-toned sanctuary photograph bathed in golden morning light, overlooking an ocean horizon, with an artist notebook, wholesome tea, soft linen textures, and peaceful plants, symbolizing a life of radiant vitality, creative depth, and mindful peace.`,
+        masterMantra: `I walk forward with grounded clarity, vibrant energy, and purposeful love.`,
+        title: annualTheme || "My Vision Board",
+      };
+    }
+
+    const seedVal = seed !== undefined ? Number(seed) : Math.floor(Math.random() * 1000000);
+    let width = 1920;
+    let height = 1080;
+    if (aspectRatio === "9:16") {
+      width = 1080;
+      height = 1920;
+    } else if (aspectRatio === "1:1") {
+      width = 1200;
+      height = 1200;
+    }
+
+    const fullPrompt = `${parsed.masterPrompt}, cinematic masterpiece, warm golden sunlight, 35mm film photography, rich textures, serene aesthetic, high resolution, photorealistic, elegant composition`;
+    const singlePhotoUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(fullPrompt)}?width=${width}&height=${height}&nologo=true&seed=${seedVal}`;
+
+    res.json({
+      success: true,
+      singlePhotoUrl,
+      masterPrompt: parsed.masterPrompt,
+      masterMantra: parsed.masterMantra,
+      title: parsed.title,
+      seed: seedVal,
+      aspectRatio,
+    });
+  } catch (err: any) {
+    console.error("Single photo vision board error:", err);
+    res.status(500).json({
+      error: err.message || "Failed to generate single photo vision board",
+    });
+  }
+});
+
+app.post("/api/synthesize-vision", async (req: Request, res: Response) => {
+  try {
+    const { goals = [], annualTheme = "", userName = "Seeker" } = req.body;
+
+    const goalsSummary = Array.isArray(goals)
+      ? goals
+          .map(
+            (g: any, i: number) =>
+              `${i + 1}. [${g.pillar?.toUpperCase()}]: "${g.title}" ${g.explanation ? `(${g.explanation})` : ""}`
+          )
+          .join("\n")
+      : "No goals listed.";
+
+    const prompt = `Synthesize a poetic, deeply inspiring 'North Star Manifesto' for ${userName}'s Vision Board.
+Annual Theme / Guiding Motto: "${annualTheme || 'Year of Intentional Living & Warmth'}"
+
+Goals Across the 9 Life Spheres:
+${goalsSummary}
+
+Create a poetic 3-paragraph life vision uniting these 9 dimensions into a cohesive philosophy of presence, purpose, love, and growth.
+Return ONLY valid JSON:
+{
+  "manifesto": "A lyrical, deeply moving 2-3 paragraph manifesto written in second-person ('You are walking into a season where...') celebrating their holistic life.",
+  "guidingMantra": "A memorable 1-sentence overarching mantra.",
+  "topPillarFocus": "Which pillar appears most foundational to their current season of growth and why (1 sentence)."
+}`;
+
+    const systemInstruction =
+      "You are 'Warmth Vision Synthesizer'. Output valid JSON only, without markdown formatting.";
+
+    const result = await generateContentWithFallback(
+      prompt,
+      systemInstruction,
+      true
+    );
+
+    let parsedData: any;
+    try {
+      const cleanJson = result.text
+        .replace(/```json/gi, "")
+        .replace(/```/g, "")
+        .trim();
+      parsedData = JSON.parse(cleanJson);
+    } catch {
+      parsedData = {
+        manifesto:
+          "You are entering a season where every dimension of your life moves into quiet harmony. Your physical energy, purposeful craft, inner stillness, and cherished relationships are not competing for your attention—they nourish one another. With each sunrise, you choose presence over pressure, and joy over haste.",
+        guidingMantra: "Living with deep presence, courageous purpose, and boundless warmth.",
+        topPillarFocus: "Health and inner stillness serve as the roots that allow all other branches of your life to flourish.",
+      };
+    }
+
+    res.json({
+      success: true,
+      data: parsedData,
+      telemetry: {
+        modelUsed: result.modelUsed,
+        attemptedModels: result.attemptedModels,
+        fallbackTriggered: result.fallbackTriggered,
+        timestamp: new Date().toISOString(),
+      },
+    });
+  } catch (error: any) {
+    console.error("Synthesize vision error:", error);
+    res.status(500).json({
+      error: error.message || "Failed to synthesize vision board",
+    });
+  }
+});
+
+app.get("/api/proxy-image", async (req: Request, res: Response) => {
+  const url = req.query.url as string;
+  if (!url) {
+    return res.status(400).send("No url provided");
+  }
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      return res.status(response.status).send("Failed to fetch image");
+    }
+    const contentType = response.headers.get("content-type") || "image/jpeg";
+    res.setHeader("Content-Type", contentType);
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Cache-Control", "public, max-age=86400");
+    const arrayBuffer = await response.arrayBuffer();
+    res.send(Buffer.from(arrayBuffer));
+  } catch (err: any) {
+    console.error("Proxy image error:", err);
+    res.status(500).send("Proxy image error");
+  }
+});
+
+
 
 // ==========================================
 // VITE INTEGRATION
