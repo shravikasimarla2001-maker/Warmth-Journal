@@ -203,6 +203,8 @@ export async function saveJournalEntry(
     mood: entry.mood || "reflective",
     tags: entry.tags || ["reflection"],
     initialThought: entry.initialThought || "",
+    customFeelings: entry.customFeelings || [],
+    wisdom: entry.wisdom || null,
     summary: entry.summary || "",
     insights: entry.insights || [],
     reflectionType: entry.reflectionType || "daily_reflection",
@@ -687,6 +689,7 @@ export async function saveVisionGoal(
     textBgColor: goal.textBgColor || null,
     textBgImage: goal.textBgImage || null,
     textFontStyle: goal.textFontStyle || "serif",
+    rotation: Number.isFinite(goal.rotation) ? goal.rotation : 0,
     createdAt: goal.createdAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   });

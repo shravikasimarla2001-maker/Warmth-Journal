@@ -57,7 +57,9 @@ service cloud.firestore {
         && (!('hasVoiceNote' in data) || data.hasVoiceNote is bool)
         && (!('tags' in data) || (data.tags is list && data.tags.size() <= 20))
         && (!('messages' in data) || (data.messages is list && data.messages.size() <= 100))
-        && (!('insights' in data) || (data.insights is list && data.insights.size() <= 20));
+        && (!('insights' in data) || (data.insights is list && data.insights.size() <= 20))
+        && (!('customFeelings' in data) || (data.customFeelings is list && data.customFeelings.size() <= 20))
+        && (!('wisdom' in data) || data.wisdom == null || data.wisdom is map);
     }
 
     // =====================================================

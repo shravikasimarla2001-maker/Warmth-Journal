@@ -313,6 +313,17 @@ export default function App() {
           currentUser.uid,
           (cloudEntries) => {
             setEntries(cloudEntries);
+            setCurrentEditingEntry((prev) => {
+              const todayStr = new Date().toISOString().split("T")[0];
+              const activeDate = prev?.date || todayStr;
+              const matchingCloud = cloudEntries.find((e) => e.date === activeDate);
+              if (matchingCloud) {
+                if (!prev || prev.id === matchingCloud.id || (!prev.initialThought && !prev.title)) {
+                  return matchingCloud;
+                }
+              }
+              return prev;
+            });
           },
           (err) => {
             console.warn("Firestore entries snapshot error:", err);

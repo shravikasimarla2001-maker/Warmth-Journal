@@ -158,6 +158,7 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
 
   // Textarea ref for auto-expand: starts compact (min-h 110px), grows up to 290px, then adds vertical scroll
   const thoughtTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const loadedEntryIdRef = useRef<string | null>(currentEntry?.id || null);
 
   const [title, setTitle] = useState<string>(
     currentEntry?.title || ""
@@ -323,6 +324,7 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
     // Check if an entry already exists for targetDate in memories archive (strictly 1 entry per day)
     const existing = entries.find((e) => e.date === targetDate);
     if (existing) {
+      loadedEntryIdRef.current = existing.id;
       setEntryId(existing.id);
       setTitle(existing.title || "");
       setMood(existing.mood || "calm");
@@ -344,6 +346,7 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
       }
     } else {
       // Fresh new reflection entry for this date
+      loadedEntryIdRef.current = null;
       setEntryId("entry_" + Date.now());
       setTitle("");
       setMood("calm");
@@ -629,9 +632,10 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
   }, []);
 
-  // Sync state when currentEntry changes
+  // Sync state when currentEntry prop changes from parent
   useEffect(() => {
     if (currentEntry) {
+      loadedEntryIdRef.current = currentEntry.id;
       setEntryId(currentEntry.id);
       setDate(currentEntry.date || getTodayString());
       setTitle(currentEntry.title || "");
@@ -654,6 +658,38 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
       }
     }
   }, [currentEntry]);
+
+  // Synchronize when existingSavedEntry becomes available for the active date (e.g. upon login or async Firestore load)
+  useEffect(() => {
+    if (existingSavedEntry) {
+      const isDifferentSavedEntry = loadedEntryIdRef.current !== existingSavedEntry.id;
+      const isEditorPristine = !initialThought && !title && messages.length === 0;
+
+      if (isDifferentSavedEntry || isEditorPristine) {
+        loadedEntryIdRef.current = existingSavedEntry.id;
+        setEntryId(existingSavedEntry.id);
+        setDate(existingSavedEntry.date);
+        setTitle(existingSavedEntry.title || "");
+        setMood(existingSavedEntry.mood || "calm");
+        setCustomFeelings(existingSavedEntry.customFeelings || []);
+        setReflectionType(existingSavedEntry.reflectionType || "daily_reflection");
+        setInitialThought(existingSavedEntry.initialThought || "");
+        setMessages(existingSavedEntry.messages || []);
+        setSummary(existingSavedEntry.summary || "");
+        setInsights(existingSavedEntry.insights || []);
+        setTags(existingSavedEntry.tags || ["reflection"]);
+        setFavorite(existingSavedEntry.favorite || false);
+        setPhotoUrl(existingSavedEntry.photoUrl);
+        setPhotoCaption(existingSavedEntry.photoCaption || "");
+        setCreatedAtState(existingSavedEntry.createdAt || new Date().toISOString());
+        if (existingSavedEntry.wisdom) {
+          setCurrentWisdom(existingSavedEntry.wisdom);
+        } else {
+          setCurrentWisdom(getDailyWisdom(existingSavedEntry.mood || "calm", preferredStream, 0));
+        }
+      }
+    }
+  }, [existingSavedEntry]);
 
   // Scroll chat messages internally ONLY when user actively reflects or chats, NEVER on initial mount or page navigation
   useEffect(() => {
@@ -815,7 +851,10 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
     };
 
     try {
-      await onSaveEntry(payload);
+      const savedId = await onSaveEntry(payload);
+      const resultingId = (typeof savedId === "string" && savedId) ? savedId : entryId;
+      setEntryId(resultingId);
+      loadedEntryIdRef.current = resultingId;
       setSaveStatus(`Saved your journaling & AI reflections for ${date}!`);
 
       // Celebration effect
