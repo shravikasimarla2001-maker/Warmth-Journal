@@ -53,12 +53,26 @@ export default function App() {
   // Navigation State: Today, Memories, Vision Board, Insights
   const [activeTab, setActiveTab] = useState<"today" | "memories" | "insights" | "vision">("today");
 
-  // App Settings State (Theme, Wisdom lens, Hardware, Habits & Milestones)
+  // App Settings State (Theme, Wisdom lens, Hardware, Habits)
   const [settings, setSettings] = useState<AppSettings>(() => {
     try {
       const saved = localStorage.getItem("warmth_app_settings");
+      const savedStream = localStorage.getItem("warmth_wisdom_stream") as WisdomStream;
       if (saved) {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (savedStream) {
+          parsed.wisdomStream = savedStream;
+        }
+        return parsed;
+      }
+      if (savedStream) {
+        return {
+          theme: "system",
+          wisdomStream: savedStream,
+          enableCamera: true,
+          enableMicrophone: true,
+          autoPlayWisdomAudio: true,
+        };
       }
     } catch {
       // ignore
@@ -74,11 +88,11 @@ export default function App() {
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [settingsInitialSection, setSettingsInitialSection] = useState<
-    "habits" | "wisdom" | "hardware" | "milestones"
+    "habits" | "wisdom" | "hardware"
   >("habits");
 
   const openSettings = (
-    section: "habits" | "wisdom" | "hardware" | "milestones"
+    section: "habits" | "wisdom" | "hardware" = "habits"
   ) => {
     setSettingsInitialSection(section);
     setIsSettingsOpen(true);
@@ -773,61 +787,6 @@ export default function App() {
     showToast("Habits reset to 6 mindful presets.");
   };
 
-  // Add Custom Milestone
-  const handleAddCustomMilestone = async (data: {
-    title: string;
-    description: string;
-    category: string;
-    icon: string;
-  }) => {
-    const todayStr = new Date().toISOString().split("T")[0];
-    const newMilestone: UserMilestone = {
-      id: "custom_milestone_" + Date.now(),
-      userId: user ? user.uid : "guest_user",
-      badgeKey: "custom_" + Date.now(),
-      title: data.title,
-      description: data.description,
-      icon: data.icon || "Sparkles",
-      unlockedAt: new Date().toISOString(),
-      isCustom: true,
-      category: data.category,
-      postcardData: {
-        date: todayStr,
-        mood: "inspired",
-        journalExcerpt: data.description,
-        habitsCompleted: [],
-        tasksCompleted: [],
-      },
-    };
-
-    const updated = [newMilestone, ...milestones];
-    setMilestones(updated);
-
-    if (user) {
-      try {
-        await saveMilestone(user.uid, newMilestone);
-        showToast(`Created custom milestone: "${data.title}"! 🎉`);
-      } catch (err) {
-        console.error("Failed to save custom milestone:", err);
-      }
-    } else {
-      localStorage.setItem("warmth_guest_milestones", JSON.stringify(updated));
-      showToast(`Created custom milestone: "${data.title}"! 🎉`);
-    }
-
-    setCelebrationMilestone(newMilestone);
-  };
-
-  // Delete Custom Milestone
-  const handleDeleteCustomMilestone = async (milestoneId: string) => {
-    const updated = milestones.filter((m) => m.id !== milestoneId);
-    setMilestones(updated);
-    if (!user) {
-      localStorage.setItem("warmth_guest_milestones", JSON.stringify(updated));
-    }
-    showToast("Milestone removed.");
-  };
-
   // Navigate to Today page with today's date (used when switching to Today from another tab or clicking New Entry from other views)
   const handleNavigateToToday = () => {
     const todayStr = new Date().toISOString().split("T")[0];
@@ -1137,6 +1096,7 @@ export default function App() {
                 bookmarkedWisdomIds={bookmarkedWisdomIds}
                 onToggleWisdomBookmark={handleToggleWisdomBookmark}
                 defaultWisdomStream={settings.wisdomStream}
+                onChangeWisdomStream={(stream) => handleUpdateSettings({ wisdomStream: stream })}
                 enableCamera={settings.enableCamera}
                 enableMicrophone={settings.enableMicrophone}
                 onSaveEnabledChange={setHasUnsavedJournalChanges}
@@ -1183,7 +1143,6 @@ export default function App() {
                 onSelectEntryByDate={(dateStr) => handleWriteForDate(dateStr)}
                 onOpenHabitManager={() => openSettings("habits")}
                 onOpenSettings={() => openSettings("habits")}
-                onOpenMileStones={() => openSettings("milestones")}
               />
             )}
           </>
@@ -1201,9 +1160,6 @@ export default function App() {
         onSaveHabitTemplate={handleSaveHabitTemplate}
         onDeleteHabitTemplate={handleDeleteHabitTemplate}
         onResetHabitDefaults={handleResetHabitDefaults}
-        milestones={milestones}
-        onAddCustomMilestone={handleAddCustomMilestone}
-        onDeleteCustomMilestone={handleDeleteCustomMilestone}
         initialSection={settingsInitialSection}
       />
 

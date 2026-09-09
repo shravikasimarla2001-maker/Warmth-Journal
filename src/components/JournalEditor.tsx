@@ -77,6 +77,7 @@ interface JournalEditorProps {
   bookmarkedWisdomIds?: string[];
   onToggleWisdomBookmark?: (item: DailyWisdomItem) => void;
   defaultWisdomStream?: WisdomStream;
+  onChangeWisdomStream?: (stream: WisdomStream) => void;
   enableCamera?: boolean;
   enableMicrophone?: boolean;
   onSaveEnabledChange?: (canSave: boolean) => void;
@@ -119,6 +120,7 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
   bookmarkedWisdomIds = [],
   onToggleWisdomBookmark,
   defaultWisdomStream = "all",
+  onChangeWisdomStream,
   enableCamera = true,
   enableMicrophone = true,
   onSaveEnabledChange,
@@ -999,6 +1001,9 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
               localStorage.setItem("warmth_wisdom_stream", stream);
             } catch (e) {
               // ignore
+            }
+            if (onChangeWisdomStream) {
+              onChangeWisdomStream(stream);
             }
             setWisdomCycleOffset(0);
             setCurrentWisdom(getDailyWisdom(mood, stream, 0));

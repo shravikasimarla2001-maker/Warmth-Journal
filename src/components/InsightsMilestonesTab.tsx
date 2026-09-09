@@ -40,7 +40,6 @@ interface InsightsMilestonesTabProps {
   onSelectEntryByDate?: (dateStr: string) => void;
   onOpenHabitManager: () => void;
   onOpenSettings?: () => void;
-  onOpenMileStones?: () => void;
 }
 
 // Fixed Milestone Badges Catalog
@@ -119,7 +118,6 @@ export const InsightsMilestonesTab: React.FC<InsightsMilestonesTabProps> = ({
   onSelectEntryByDate,
   onOpenHabitManager,
   onOpenSettings,
-  onOpenMileStones,
 }) => {
   const [aiSynthesis, setAiSynthesis] = useState<{
     synthesis: string;
@@ -434,17 +432,6 @@ export const InsightsMilestonesTab: React.FC<InsightsMilestonesTabProps> = ({
           </div>
 
           <div className="flex items-center space-x-2">
-            {onOpenMileStones && (
-              <button
-                type="button"
-                onClick={onOpenMileStones}
-                className="px-3 py-1.5 rounded-xl bg-white border border-[#E8DFC8] text-xs font-semibold text-[#7E6E5F] hover:text-[#2C241E] hover:bg-[#FAF7F2] transition-colors shadow-2xs flex items-center space-x-1.5 cursor-pointer"
-                title="Configure Milestones"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-[#BA4A00]" />
-                <span>Configure Milestones</span>
-              </button>
-            )}
             {onOpenSettings && (
               <button
                 type="button"

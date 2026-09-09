@@ -37,7 +37,6 @@ import {
   AppTheme,
   HabitTemplate,
   HabitCategory,
-  UserMilestone,
   WisdomStream,
   MoodType,
 } from "../types";
@@ -69,15 +68,7 @@ interface SettingsModalProps {
   onSaveHabitTemplate: (template: Partial<HabitTemplate> & { title: string }) => Promise<void>;
   onDeleteHabitTemplate: (templateId: string) => Promise<void>;
   onResetHabitDefaults: () => Promise<void>;
-  milestones: UserMilestone[];
-  onAddCustomMilestone: (milestone: {
-    title: string;
-    description: string;
-    category: string;
-    icon: string;
-  }) => Promise<void>;
-  onDeleteCustomMilestone?: (milestoneId: string) => Promise<void>;
-  initialSection?: "habits" | "wisdom" | "hardware" | "milestones";
+  initialSection?: "habits" | "wisdom" | "hardware";
 }
 
 const WISDOM_STREAM_OPTIONS: {
@@ -124,15 +115,6 @@ const WISDOM_STREAM_OPTIONS: {
   },
 ];
 
-const MILESTONE_CATEGORIES = [
-  { key: "Consistency", label: "Consistency & Streak", icon: Flame },
-  { key: "Mindfulness", label: "Mindfulness & Reflection", icon: Feather },
-  { key: "Wellness", label: "Health & Vitality", icon: Heart },
-  { key: "Growth", label: "Personal Growth & Mastery", icon: Award },
-];
-
-const MILESTONE_ICONS = ["Award", "Flame", "Star", "Heart", "Sparkles", "Sun", "Compass", "Feather"];
-
 export const SettingsModal: React.FC<SettingsModalProps> = ({
   isOpen,
   onClose,
@@ -143,13 +125,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onSaveHabitTemplate,
   onDeleteHabitTemplate,
   onResetHabitDefaults,
-  milestones,
-  onAddCustomMilestone,
-  onDeleteCustomMilestone,
   initialSection = "habits",
 }) => {
   const [activeSection, setActiveSection] = useState<
-    "habits" | "wisdom" | "hardware" | "milestones"
+    "habits" | "wisdom" | "hardware"
   >(initialSection);
 
   useEffect(() => {
@@ -157,14 +136,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       setActiveSection(initialSection);
     }
   }, [isOpen, initialSection]);
-
-  // Custom milestone state
-  const [newMilestoneTitle, setNewMilestoneTitle] = useState("");
-  const [newMilestoneDesc, setNewMilestoneDesc] = useState("");
-  const [newMilestoneCat, setNewMilestoneCat] = useState("Mindfulness");
-  const [newMilestoneIcon, setNewMilestoneIcon] = useState("Award");
-  const [isAddingMilestone, setIsAddingMilestone] = useState(false);
-  const [milestoneSuccess, setMilestoneSuccess] = useState(false);
 
   // Habit configuration state
   const [newHabitTitle, setNewHabitTitle] = useState("");
@@ -259,29 +230,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     }
   };
 
-  const handleCreateMilestone = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newMilestoneTitle.trim()) return;
-
-    setIsAddingMilestone(true);
-    try {
-      await onAddCustomMilestone({
-        title: newMilestoneTitle.trim(),
-        description: newMilestoneDesc.trim() || "Custom personal growth milestone.",
-        category: newMilestoneCat,
-        icon: newMilestoneIcon,
-      });
-      setNewMilestoneTitle("");
-      setNewMilestoneDesc("");
-      setMilestoneSuccess(true);
-      setTimeout(() => setMilestoneSuccess(false), 2500);
-    } finally {
-      setIsAddingMilestone(false);
-    }
-  };
-
-  const customMilestones = milestones.filter((m) => m.isCustom);
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
       <div className="bg-[#FAF7F2] dark:bg-[#1F1B18] w-full max-w-4xl rounded-2xl shadow-2xl border border-[#E8DFC8] dark:border-[#3E342B] flex flex-col md:flex-row max-h-[90vh] overflow-hidden text-[#2C241E] dark:text-[#E8DFC8]">
@@ -342,19 +290,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <Sliders className="w-4 h-4" />
                 <span>Habit Configurations</span>
               </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveSection("milestones")}
-                className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all text-left ${
-                  activeSection === "milestones"
-                    ? "bg-white dark:bg-[#2C241E] text-[#BA4A00] dark:text-[#F39C12] shadow-xs"
-                    : "text-[#7E6E5F] dark:text-[#A89887] hover:bg-[#EAE0D0] dark:hover:bg-[#261F1A]"
-                }`}
-              >
-                <Award className="w-4 h-4" />
-                <span>Custom Milestones</span>
-              </button>
             </nav>
           </div>
 
@@ -376,7 +311,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 {activeSection === "wisdom" && "Wisdom Tradition & Philosophical Lens"}
                 {activeSection === "hardware" && "Camera & Microphone Hardware"}
                 {activeSection === "habits" && "Habit Routine Management"}
-                {activeSection === "milestones" && "Create Custom Milestones"}
               </h3>
               <button
                 type="button"
@@ -795,162 +729,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                           </div>
                         );
                       })}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-
-            {/* 5. CUSTOM MILESTONES SECTION */}
-            {activeSection === "milestones" && (
-              <div className="space-y-5 animate-fade-in">
-                {/* Milestone Form */}
-                <form
-                  onSubmit={handleCreateMilestone}
-                  className="p-4 rounded-xl bg-white dark:bg-[#241E1A] border border-[#E8DFC8] dark:border-[#3E342B] space-y-3"
-                >
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-[#BA4A00] flex items-center space-x-1.5">
-                    <Plus className="w-4 h-4" />
-                    <span>Create New Personal Milestone</span>
-                  </h4>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-[11px] font-semibold text-[#7E6E5F] dark:text-[#A89887] block mb-1">
-                        Milestone Title
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="e.g., 30-Day Morning Sunlight Streak"
-                        value={newMilestoneTitle}
-                        onChange={(e) => setNewMilestoneTitle(e.target.value)}
-                        className="w-full px-3 py-2 text-xs rounded-xl bg-[#FAF7F2] dark:bg-[#1A1613] border border-[#E8DFC8] dark:border-[#3E342B] focus:outline-none focus:border-[#BA4A00]"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-[11px] font-semibold text-[#7E6E5F] dark:text-[#A89887] block mb-1">
-                        Category Tag
-                      </label>
-                      <select
-                        value={newMilestoneCat}
-                        onChange={(e) => setNewMilestoneCat(e.target.value)}
-                        className="w-full px-3 py-2 text-xs rounded-xl bg-[#FAF7F2] dark:bg-[#1A1613] border border-[#E8DFC8] dark:border-[#3E342B] focus:outline-none focus:border-[#BA4A00]"
-                      >
-                        {MILESTONE_CATEGORIES.map((cat) => (
-                          <option key={cat.key} value={cat.key}>
-                            {cat.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="text-[11px] font-semibold text-[#7E6E5F] dark:text-[#A89887] block mb-1">
-                      Description & Intention
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="e.g., Step outside for 10 minutes every morning before digital screens."
-                      value={newMilestoneDesc}
-                      onChange={(e) => setNewMilestoneDesc(e.target.value)}
-                      className="w-full px-3 py-2 text-xs rounded-xl bg-[#FAF7F2] dark:bg-[#1A1613] border border-[#E8DFC8] dark:border-[#3E342B] focus:outline-none focus:border-[#BA4A00]"
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between pt-2">
-                    <div className="flex items-center space-x-2">
-                      <span className="text-[11px] text-[#7E6E5F] dark:text-[#A89887]">
-                        Icon:
-                      </span>
-                      <div className="flex space-x-1">
-                        {MILESTONE_ICONS.slice(0, 6).map((ic) => (
-                          <button
-                            key={ic}
-                            type="button"
-                            onClick={() => setNewMilestoneIcon(ic)}
-                            className={`p-1.5 rounded-lg border text-xs transition-colors ${
-                              newMilestoneIcon === ic
-                                ? "bg-[#F5EBE1] dark:bg-[#3B2C1E] border-[#BA4A00] text-[#BA4A00]"
-                                : "bg-[#FAF7F2] dark:bg-[#1A1613] border-[#E8DFC8] dark:border-[#3E342B] text-stone-500"
-                            }`}
-                          >
-                            {ic === "Award" && <Award className="w-3.5 h-3.5" />}
-                            {ic === "Flame" && <Flame className="w-3.5 h-3.5" />}
-                            {ic === "Star" && <Star className="w-3.5 h-3.5" />}
-                            {ic === "Heart" && <Heart className="w-3.5 h-3.5" />}
-                            {ic === "Sparkles" && <Sparkles className="w-3.5 h-3.5" />}
-                            {ic === "Sun" && <Sun className="w-3.5 h-3.5" />}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <button
-                      type="submit"
-                      disabled={isAddingMilestone || !newMilestoneTitle.trim()}
-                      className="px-4 py-2 bg-[#BA4A00] hover:bg-[#935116] disabled:opacity-50 text-white text-xs font-semibold rounded-xl shadow-xs transition-all cursor-pointer"
-                    >
-                      {isAddingMilestone ? "Adding..." : "Add Milestone"}
-                    </button>
-                  </div>
-
-                  {milestoneSuccess && (
-                    <div className="text-xs text-emerald-600 font-semibold flex items-center space-x-1 pt-1">
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      <span>Custom milestone added to your sanctuary records!</span>
-                    </div>
-                  )}
-                </form>
-
-                {/* Custom Milestones List */}
-                <div>
-                  <h5 className="text-xs font-bold uppercase tracking-wider text-[#8C7B6C] dark:text-[#A89887] mb-2">
-                    Your Custom Milestones ({customMilestones.length})
-                  </h5>
-                  {customMilestones.length === 0 ? (
-                    <div className="p-4 rounded-xl border border-dashed border-[#E8DFC8] dark:border-[#3E342B] text-center text-xs text-[#8C7B6C] dark:text-[#A89887]">
-                      No custom milestones created yet. Set a personal goal above!
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {customMilestones.map((m) => (
-                        <div
-                          key={m.id}
-                          className="flex items-center justify-between p-3 rounded-xl bg-white dark:bg-[#241E1A] border border-[#E8DFC8] dark:border-[#3E342B]"
-                        >
-                          <div className="flex items-center space-x-3">
-                            <div className="w-8 h-8 rounded-lg bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 flex items-center justify-center">
-                              <Award className="w-4 h-4" />
-                            </div>
-                            <div>
-                              <span className="text-xs font-bold text-[#2C241E] dark:text-[#F5EBE1]">
-                                {m.title}
-                              </span>
-                              <p className="text-[11px] text-[#7E6E5F] dark:text-[#A89887]">
-                                {m.description}
-                              </p>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center space-x-2">
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#F5EBE1] dark:bg-[#3B2C1E] text-[#BA4A00] font-semibold">
-                              {m.category || "Growth"}
-                            </span>
-                            {onDeleteCustomMilestone && (
-                              <button
-                                type="button"
-                                onClick={() => onDeleteCustomMilestone(m.id)}
-                                className="p-1.5 text-stone-400 hover:text-rose-600 rounded-lg transition-colors"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      ))}
                     </div>
                   )}
                 </div>

@@ -395,11 +395,11 @@ export const DailyWisdomCard: React.FC<DailyWisdomCardProps> = ({
               <button
                 type="button"
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
-                className="px-2.5 py-1.5 rounded-xl bg-white border border-[#E8DFC8] text-xs font-semibold text-[#2C241E] flex items-center space-x-1 hover:bg-[#FAF7F2] transition-colors cursor-pointer"
+                className="px-2.5 py-1.5 rounded-xl bg-white dark:bg-[#241E1A] border border-[#E8DFC8] dark:border-[#3E342B] text-xs font-semibold text-[#2C241E] dark:text-[#F5EBE1] flex items-center space-x-1 hover:bg-[#FAF7F2] dark:hover:bg-[#2D2620] transition-colors cursor-pointer"
               >
                 <span>{streamInfo.icon}</span>
                 <span className="hidden sm:inline text-[11px]">{streamInfo.label}</span>
-                <ChevronDown className="w-3 h-3 text-[#7E6E5F]" />
+                <ChevronDown className="w-3 h-3 text-[#7E6E5F] dark:text-[#A89887]" />
               </button>
 
               {isMenuOpen && (
@@ -408,12 +408,13 @@ export const DailyWisdomCard: React.FC<DailyWisdomCardProps> = ({
                     className="fixed inset-0 z-20"
                     onClick={() => setIsMenuOpen(false)}
                   />
-                  <div className="absolute right-0 mt-1.5 w-56 bg-white border border-[#E8DFC8] rounded-2xl shadow-xl p-1.5 z-30 space-y-0.5 animate-fade-in text-left">
-                    <div className="px-2.5 py-1 text-[10px] uppercase font-bold text-[#8C7B6C] tracking-wider">
+                  <div className="absolute right-0 mt-1.5 w-56 bg-white dark:bg-[#241E1A] border border-[#E8DFC8] dark:border-[#3E342B] rounded-2xl shadow-xl p-1.5 z-30 space-y-0.5 animate-fade-in text-left">
+                    <div className="px-2.5 py-1 text-[10px] uppercase font-bold text-[#8C7B6C] dark:text-[#A89887] tracking-wider">
                       Wisdom Tradition Lens
                     </div>
                     {(
                       [
+                        "all",
                         "gita",
                         "stoic",
                         "buddhism",
@@ -424,13 +425,13 @@ export const DailyWisdomCard: React.FC<DailyWisdomCardProps> = ({
                         key={st}
                         type="button"
                         onClick={() => {
-                          onChangeStream(st);
+                          onChangeStream?.(st);
                           setIsMenuOpen(false);
                         }}
                         className={`w-full text-left px-2.5 py-1.5 rounded-xl text-xs flex items-center space-x-2 transition-colors cursor-pointer ${
                           preferredStream === st
-                            ? "bg-[#F5EBE1] text-[#935116] font-bold"
-                            : "text-[#4A3B32] hover:bg-[#FAF7F2]"
+                            ? "bg-[#F5EBE1] dark:bg-[#3B2C1E] text-[#935116] dark:text-[#F39C12] font-bold"
+                            : "text-[#4A3B32] dark:text-[#E8DFC8] hover:bg-[#FAF7F2] dark:hover:bg-[#2D2620]"
                         }`}
                       >
                         <span className="text-sm">{STREAM_LABELS[st].icon}</span>
